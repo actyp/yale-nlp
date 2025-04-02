@@ -1,5 +1,5 @@
-from prompt import SamplePrompt, VerifyPrompt
-from prompt import Step, Solution, Response
+from prompt import Step, Solution, AnalyticalResponse, CorrectionResponse
+from prompt import SamplePrompt, VerifyPrompt, CorrectPrompt
 from local_models import Qwen25_7B_Instruct
 import langfun as lf
 
@@ -40,6 +40,12 @@ Your job is to:
 3. Write a line of the form "The proposed solution is correct" or "The proposed solution is incorrect" at the end of your response based on your analysis.\
 """)
 
+correct_request = ("""\
+You are an expert at planning trips. You are given a TASK of Trip Planning request. \
+You are also given a set of solution-analysis pairs. \
+Your job is to outline your step-by-step thought process for deriving a new solution.\
+""")
+
 solution = Solution(steps=[
     Step(
         city_name='Rome',
@@ -54,36 +60,46 @@ solution = Solution(steps=[
         duration=4
     ),
 ])
-
 examples = [
     lf.MappingExample(
         input='Input of first example of trip planning',
-        schema=Response,
-        output=Response(
+        schema=AnalyticalResponse,
+        output=AnalyticalResponse(
             analysis="Analysis of first input example",
             solution=solution
         )
     )
 ]
 
+analysis = "Verification analysis"
+
 sample_prompt = SamplePrompt(
     preamble=preamble,
     examples=examples,
-    input=task,
     request=sample_request,
+    input=task,
 )
 
 verify_prompt = VerifyPrompt(
     preamble=preamble,
     examples=examples,
     request=verify_request,
-    input=solution,
+    solution=solution,
+)
+
+correct_prompt = CorrectPrompt(
+    preamble=preamble,
+    examples=examples,
+    request=correct_request,
+    input=task,
+    solution=solution,
+    analysis=analysis,
 )
 
 print(
     lf.query_prompt(
         prompt=sample_prompt,
-        schema=Response,
+        schema=AnalyticalResponse,
         lm=Qwen25_7B_Instruct(),
         default=None
     ),
@@ -92,5 +108,11 @@ print(
         lm=Qwen25_7B_Instruct(),
         default=None
     ),
-    sep='\n\n' + 80 * '=' + '\n\n',
+    lf.query_prompt(
+        prompt=correct_prompt,
+        schema=CorrectionResponse,
+        lm=Qwen25_7B_Instruct(),
+        default=None
+    ),
+    sep='\n\n' + 100 * '=' + '\n\n',
 )
