@@ -1,4 +1,5 @@
-from prompt import SamplePrompt, Step, Solution, Response
+from prompt import SamplePrompt, VerifyPrompt
+from prompt import Step, Solution, Response
 from local_models import Qwen25_7B_Instruct
 import langfun as lf
 
@@ -9,7 +10,7 @@ You are given a few constraints regarding the cities to visit and the durations 
 You are also given the flight information between the cities.\
 """)
 
-input = ("""\
+task = ("""\
 You plan to visit 6 European cities for 16 days in total. \
 You only take direct flights to commute between cities. \
 On the last day of your visit to each city, you can take a direct flight to the next city and arrive on the same day. \
@@ -24,45 +25,72 @@ You would like to visit Milan for 3 days.
 Here are the cities that have direct flights:
  Athens and Milan, Milan and Porto, Porto and Lyon, Athens and Dubrovnik, Dubrovnik and Helsinki, Helsinki and Milan.
 
-Find a trip plan of visiting the cities for 16 days by taking direct flights to commute between them.
+Find a trip plan of visiting the cities for 16 days by taking direct flights to commute between them.\
+""")
 
+sample_request = ("""\
 Please first list all the constraints in the problem and then output a final solution that satisfies all the constraints.\
 """)
 
+verify_request = ("""\
+You are an expert at planning trips. You are given a TASK of Trip Planning request, and a PROPOSED SOLUTION. \
+Your job is to:
+1. List all constraints in the TASK.
+2. Verify if the PROPOSED SOLUTION satisfies each of the constraints with justifications.
+3. Write a line of the form "The proposed solution is correct" or "The proposed solution is incorrect" at the end of your response based on your analysis.\
+""")
 
-prompt = SamplePrompt(
-    preamble=preamble,
-    input=input,
-    examples=[
-        lf.MappingExample(
-            input='Input of first example of trip planning',
-            schema=Response,
-            output=Response(
-                analysis="Analysis of first input example",
-                solution=Solution(steps=[
-                    Step(
-                        city_name='Rome',
-                        arrival_day=1,
-                        departure_day=3,
-                        duration=3
-                    ),
-                    Step(
-                        city_name='Barcelona',
-                        arrival_day=3,
-                        departure_day=6,
-                        duration=4
-                    ),
-                ])
-            )
+solution = Solution(steps=[
+    Step(
+        city_name='Rome',
+        arrival_day=1,
+        departure_day=3,
+        duration=3
+    ),
+    Step(
+        city_name='Barcelona',
+        arrival_day=3,
+        departure_day=6,
+        duration=4
+    ),
+])
+
+examples = [
+    lf.MappingExample(
+        input='Input of first example of trip planning',
+        schema=Response,
+        output=Response(
+            analysis="Analysis of first input example",
+            solution=solution
         )
-    ]
+    )
+]
+
+sample_prompt = SamplePrompt(
+    preamble=preamble,
+    examples=examples,
+    input=task,
+    request=sample_request,
+)
+
+verify_prompt = VerifyPrompt(
+    preamble=preamble,
+    examples=examples,
+    request=verify_request,
+    input=solution,
 )
 
 print(
-    lf.query(
-        prompt=prompt,
+    lf.query_prompt(
+        prompt=sample_prompt,
         schema=Response,
         lm=Qwen25_7B_Instruct(),
         default=None
-    )
+    ),
+    lf.query_prompt(
+        prompt=verify_prompt,
+        lm=Qwen25_7B_Instruct(),
+        default=None
+    ),
+    sep='\n\n' + 80 * '=' + '\n\n',
 )
