@@ -1,49 +1,27 @@
-from prompt import Step, Solution, AnalyticalResponse, CorrectionResponse
+from schema import Step, Solution, AnalyticalResponse, CorrectionResponse
 from prompt import SamplePrompt, VerifyPrompt, CorrectPrompt
 from local_models import Qwen25_7B_Instruct
 import langfun as lf
 
 
-preamble = ("""\
-You are an expert at planning trips. \
-You are given a few constraints regarding the cities to visit and the durations of staying at each city. \
-You are also given the flight information between the cities.\
-""")
-
 task = ("""\
-You plan to visit 6 European cities for 16 days in total. \
-You only take direct flights to commute between cities. \
-On the last day of your visit to each city, you can take a direct flight to the next city and arrive on the same day. \
-Both the day you arrive and the day you depart count toward the total number of days spent in each city. \
-You would like to visit Lyon for 3 days. You plan to stay in Athens for 4 days. \
-You would like to visit Dubrovnik for 2 days. You plan to stay in Porto for 4 days. \
-You have to attend a workshop in Porto between day 11 and day 14. \
-You would like to visit Helsinki for 5 days. \
-From day 5 to day 9, there is a annual show you want to attend in Helsinki. \
-You would like to visit Milan for 3 days.
+You plan to visit 6 European cities for 16 days in total. You only take \
+direct flights to commute between cities. On the last day of your visit to \
+each city, you can take a direct flight to the next city and arrive on the \
+same day. Both the day you arrive and the day you depart count toward the \
+total number of days spent in each city. You would like to visit Lyon for \
+3 days. You plan to stay in Athens for 4 days. You would like to visit \
+Dubrovnik for 2 days. You plan to stay in Porto for 4 days. You have to \
+attend a workshop in Porto between day 11 and day 14. You would like to \
+visit Helsinki for 5 days. From day 5 to day 9, there is a annual show you \
+want to attend in Helsinki. You would like to visit Milan for 3 days.
 
 Here are the cities that have direct flights:
- Athens and Milan, Milan and Porto, Porto and Lyon, Athens and Dubrovnik, Dubrovnik and Helsinki, Helsinki and Milan.
+ Athens and Milan, Milan and Porto, Porto and Lyon, Athens and Dubrovnik, \
+ Dubrovnik and Helsinki, Helsinki and Milan.
 
-Find a trip plan of visiting the cities for 16 days by taking direct flights to commute between them.\
-""")
-
-sample_request = ("""\
-Please first list all the constraints in the problem and then output a final solution that satisfies all the constraints.\
-""")
-
-verify_request = ("""\
-You are an expert at planning trips. You are given a TASK of Trip Planning request, and a PROPOSED SOLUTION. \
-Your job is to:
-1. List all constraints in the TASK.
-2. Verify if the PROPOSED SOLUTION satisfies each of the constraints with justifications.
-3. Write a line of the form "The proposed solution is correct" or "The proposed solution is incorrect" at the end of your response based on your analysis.\
-""")
-
-correct_request = ("""\
-You are an expert at planning trips. You are given a TASK of Trip Planning request. \
-You are also given a set of solution-analysis pairs. \
-Your job is to outline your step-by-step thought process for deriving a new solution.\
+Find a trip plan of visiting the cities for 16 days by taking direct flights \
+to commute between them.\
 """)
 
 solution = Solution(steps=[
@@ -60,6 +38,7 @@ solution = Solution(steps=[
         duration=4
     ),
 ])
+
 examples = [
     lf.MappingExample(
         input='Input of first example of trip planning',
@@ -74,23 +53,17 @@ examples = [
 analysis = "Verification analysis"
 
 sample_prompt = SamplePrompt(
-    preamble=preamble,
     examples=examples,
-    request=sample_request,
     input=task,
 )
 
 verify_prompt = VerifyPrompt(
-    preamble=preamble,
     examples=examples,
-    request=verify_request,
     solution=solution,
 )
 
 correct_prompt = CorrectPrompt(
-    preamble=preamble,
     examples=examples,
-    request=correct_request,
     input=task,
     solution=solution,
     analysis=analysis,

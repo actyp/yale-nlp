@@ -1,62 +1,52 @@
-from typing import Annotated, Optional
+from schema import Solution
 import langfun as lf
 import pyglove as pg
 
 
-class Step(pg.Object):
-    """One solution step."""
+class CommonPrompt(lf.structured.Mapping):
+    """
+    Common base prompt class.
+    """
 
-    city_name: Annotated[
-        Optional[str], "The city name."
-    ]
+    mapping_template = lf.Template(
+        """
+        {{ input_title }}:
+        {{ example.input_repr(protocol, verbose=False, compact=False)
+           | indent(2, True) }}
 
-    arrival_day: Annotated[
-        Optional[int], "The day you arrive in the city."
-    ]
+        {% if example.schema -%}
+        {{ schema_title }}:
+        {{ example.schema_repr(protocol) | indent(2, True) }}
+        {% endif -%}
 
-    departure_day: Annotated[
-        Optional[int], "The day you depart from the city."
-    ]
+        {%- if example.has_output %}
+        {{ output_title }}:
+        {{ example.output_repr(protocol, verbose=False, compact=False)
+            | indent(2, True) }}
+        {% endif -%}
+        """
+    )
 
-    duration: Annotated[
-        Optional[int], "The number of days spent in the city."
-    ]
+    input_title = 'TASK'
+    schema_title = 'SOLUTION_TYPE'
+    output_title = 'SOLUTION'
+    example_title = "Here are a few example tasks and solutions:"
 
+    preamble = (
+        "You are an expert at planning trips. "
+        "You are given a few constraints regarding the cities to visit and "
+        "the durations of staying at each city. "
+        "You are also given the flight information between the cities."
+    )
 
-class Solution(pg.Object):
-    """Solution containing many steps."""
-
-    steps: Annotated[
-        list[Step | None], "The steps leading to the solution."
-    ]
-
-
-class AnalyticalResponse(pg.Object):
-    "Response containing analytical constraints and final solution."
-
-    analysis: Annotated[
-        str, "List all the constraints in the problem."
-    ]
-
-    solution: Annotated[
-        Solution, "The final solution that satisfies all the constraints."
-    ]
-
-
-class CorrectionResponse(pg.Object):
-    "Response containing thoughts and new corrected solution."
-
-    thought: Annotated[
-        str, "Outline your step-by-step thought process for deriving a new solution."
-    ]
-
-    solution: Annotated[
-        Solution, "The new solution that satisfies all the constraints."
-    ]
+    def mapping_input_repr(self, input) -> str:
+        return lf.MappingExample(
+            input=input
+        ).input_repr(self.protocol, verbose=False, compact=False)
 
 
-@pg.use_init_args(['request', 'input'])
-class SamplePrompt(lf.structured.Mapping):
+@pg.use_init_args(['input'])
+class SamplePrompt(CommonPrompt):
     """
     Sample prompt class.
 
@@ -71,38 +61,20 @@ class SamplePrompt(lf.structured.Mapping):
 
     {% endif -%}
 
-    {{ mapping_template.render(example=mapping_request) }}
+    {{ input_title }}:
+    {{ input }}
+
+    {{ request_template.render() }}
     """
 
-    mapping_template = lf.Template(
-        """
-        {{ input_title }}:
-        {{ example.input_repr(protocol, verbose=False, compact=False) | indent(2, True) }}
-
-        {% if not example.has_output -%}
-        {{ request | indent(2, True) }}
-        {% endif -%}
-
-        {% if example.schema -%}
-        {{ schema_title }}:
-        {{ example.schema_repr(protocol) | indent(2, True) }}
-        {% endif -%}
-
-        {%- if example.has_output %}
-        {{ output_title }}:
-        {{ example.output_repr(protocol, verbose=False, compact=False) | indent(2, True) }}
-        {% endif -%}
-        """
+    request_template = lf.Template(
+        "Please first list all the constraints in the problem and "
+        "then output a final solution that satisfies all the constraints."
     )
 
-    input_title = 'TASK'
-    schema_title = 'SOLUTION_TYPE'
-    output_title = 'SOLUTION'
-    example_title = "Here are a few example tasks and solutions:"
 
-
-@pg.use_init_args(['request', 'solution'])
-class VerifyPrompt(lf.structured.Mapping):
+@pg.use_init_args(['solution'])
+class VerifyPrompt(CommonPrompt):
     """
     Verify prompt class.
 
@@ -117,46 +89,32 @@ class VerifyPrompt(lf.structured.Mapping):
 
     {% endif -%}
 
-    {{ request }}
+    {{ request_template.render(
+        input_title=input_title, solution_title=solution_title) }}
 
     {{ solution_title }}:
-    {{ solution_repr }}
+    {{ mapping_input_repr(solution) }}
     """
 
-    mapping_template = lf.Template(
-        """
-        {{ input_title }}:
-        {{ example.input_repr(protocol, verbose=False, compact=False) | indent(2, True) }}
-
-        {% if example.schema -%}
-        {{ schema_title }}:
-        {{ example.schema_repr(protocol) | indent(2, True) }}
-        {% endif -%}
-
-        {%- if example.has_output %}
-        {{ output_title }}:
-        {{ example.output_repr(protocol, verbose=False, compact=False) | indent(2, True) }}
-        {% endif -%}
-        """
-    )
-
     input = ""
-    input_title = 'TASK'
-    schema_title = 'SOLUTION_TYPE'
-    output_title = 'SOLUTION'
-    example_title = "Here are a few example tasks and solutions:"
     solution_title = 'PROPOSED SOLUTION'
     solution: Solution
 
-    @property
-    def solution_repr(self) -> str:
-        return lf.MappingExample(
-            input=self.solution
-        ).input_repr(self.protocol, verbose=False, compact=False)
+    request_template = lf.Template(
+        "You are an expert at planning trips. "
+        "You are given a {{ input_title }} of Trip Planning request, "
+        "and a {{ solution_title }}. Your job is to:\n"
+        "1. List all constraints in the TASK.\n"
+        "2. Verify if the PROPOSED SOLUTION satisfies each of the constraints "
+        "with justifications.\n"
+        "3. Write a line of the form \"The proposed solution is correct\" "
+        "or \"The proposed solution is incorrect\" at the end of your "
+        "response based on your analysis."
+    )
 
 
-@pg.use_init_args(['request', 'input', 'solution', 'analysis'])
-class CorrectPrompt(lf.structured.Mapping):
+@pg.use_init_args(['input', 'solution', 'analysis'])
+class CorrectPrompt(CommonPrompt):
     """
     Correct prompt class.
 
@@ -171,50 +129,28 @@ class CorrectPrompt(lf.structured.Mapping):
 
     {% endif -%}
 
-    {{ request }}
+    {{ request_template.render(input_title=input_title) }}
 
     {{ input_title }}:
     {{ input }}
 
     {{ solution_title }}:
-    {{ solution_repr }}
+    {{ mapping_input_repr(solution) }}
 
     {{ analysis_title }}:
     {{ analysis }}
     """
 
-    mapping_template = lf.Template(
-        """
-        {{ input_title }}:
-        {{ example.input_repr(protocol, verbose=False, compact=False) | indent(2, True) }}
-
-        {%- if not example.has_output %}
-        {{ example.output_repr(protocol, verbose=False, compact=False) | indent(2, True) }}
-        {% endif -%}
-
-        {% if example.schema -%}
-        {{ schema_title }}:
-        {{ example.schema_repr(protocol) | indent(2, True) }}
-        {% endif -%}
-
-        {%- if example.has_output %}
-        {{ output_title }}:
-        {{ example.output_repr(protocol, verbose=False, compact=False) | indent(2, True) }}
-        {% endif -%}
-        """
-    )
-
-    input_title = 'TASK'
-    schema_title = 'SOLUTION_TYPE'
-    output_title = 'SOLUTION'
-    example_title = "Here are a few example tasks and solutions:"
-    solution_title = 'PROPOSED SOLUTION'
     solution: Solution
-    analysis_title = 'Analysis'
     analysis: str
+    solution_title = 'PROPOSED SOLUTION'
+    analysis_title = 'ANALYSIS'
 
-    @property
-    def solution_repr(self) -> str:
-        return lf.MappingExample(
-            input=self.solution
-        ).input_repr(self.protocol, verbose=False, compact=False)
+    request_template = lf.Template(
+        "You are an expert at planning trips. "
+        "You are given a {{ input_title }} of Trip Planning request. "
+        "You are also given pairs of "
+        "({{ solution_title }}, {{ analysis_title }})."
+        "Your job is to outline your step-by-step thought process for "
+        "deriving a new solution."
+    )
