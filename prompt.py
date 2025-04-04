@@ -73,7 +73,7 @@ class SamplePrompt(CommonPrompt):
     )
 
 
-@pg.use_init_args(['solution'])
+@pg.use_init_args(['input', 'solution'])
 class VerifyPrompt(CommonPrompt):
     """
     Verify prompt class.
@@ -92,13 +92,17 @@ class VerifyPrompt(CommonPrompt):
     {{ request_template.render(
         input_title=input_title, solution_title=solution_title) }}
 
+    {{ input_title }}:
+    {{ input }}
+
     {{ solution_title }}:
     {{ mapping_input_repr(solution) }}
     """
 
-    input = ""
     solution_title = 'PROPOSED SOLUTION'
     solution: Solution
+    answer_trigger_success = "The proposed solution is correct"
+    answer_trigger_failure = "The proposed solution is incorrect"
 
     request_template = lf.Template(
         "You are an expert at planning trips. "
@@ -107,10 +111,19 @@ class VerifyPrompt(CommonPrompt):
         "1. List all constraints in the TASK.\n"
         "2. Verify if the PROPOSED SOLUTION satisfies each of the constraints "
         "with justifications.\n"
-        "3. Write a line of the form \"The proposed solution is correct\" "
-        "or \"The proposed solution is incorrect\" at the end of your "
+        "3. Write a line of the form \"{{ answer_trigger_success }}\" "
+        "or \"{{ answer_trigger_failure }}\" at the end of your "
         "response based on your analysis."
     )
+
+    @staticmethod
+    def is_successful_analysis(analysis: str | None) -> bool:
+        if analysis is None:
+            return False
+        elif VerifyPrompt.answer_trigger_success in analysis:
+            return True
+        elif VerifyPrompt.answer_trigger_failure in analysis:
+            return False
 
 
 @pg.use_init_args(['input', 'solution', 'analysis'])
