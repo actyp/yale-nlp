@@ -1,5 +1,6 @@
 from typing import Annotated, Optional
 import pyglove as pg
+import langfun as lf
 
 
 class Step(pg.Object):
@@ -52,3 +53,30 @@ class CorrectionResponse(pg.Object):
     solution: Annotated[
         Solution, "The new solution that satisfies all the constraints."
     ]
+
+
+solution = Solution(steps=[
+    Step(
+        city_name='Rome',
+        arrival_day=1,
+        departure_day=3,
+        duration=3
+    ),
+    Step(
+        city_name='Barcelona',
+        arrival_day=3,
+        departure_day=6,
+        duration=4
+    ),
+])
+
+examples = [
+    lf.MappingExample(
+        input='Input of first example of trip planning',
+        schema=AnalyticalResponse,
+        output=AnalyticalResponse(
+            analysis="Analysis of first input example",
+            solution=solution
+        )
+    )
+]
