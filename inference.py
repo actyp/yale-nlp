@@ -1,8 +1,19 @@
-from schema import Step, Solution, AnalyticalResponse, CorrectionResponse
+from schema import Solution, AnalyticalResponse, CorrectionResponse
 from prompt import SamplePrompt, VerifyPrompt, CorrectPrompt
 from local_models import Qwen25_7B_Instruct
+from schema import examples, solution
 import langfun as lf
+import logging
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler("inference.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 task = ("""\
 You plan to visit 6 European cities for 16 days in total. You only take \
@@ -24,68 +35,195 @@ Find a trip plan of visiting the cities for 16 days by taking direct flights \
 to commute between them.\
 """)
 
-solution = Solution(steps=[
-    Step(
-        city_name='Rome',
-        arrival_day=1,
-        departure_day=3,
-        duration=3
-    ),
-    Step(
-        city_name='Barcelona',
-        arrival_day=3,
-        departure_day=6,
-        duration=4
-    ),
-])
 
-examples = [
-    lf.MappingExample(
-        input='Input of first example of trip planning',
-        schema=AnalyticalResponse,
-        output=AnalyticalResponse(
-            analysis="Analysis of first input example",
-            solution=solution
+def log_sample_prompts():
+    analysis = "Verification analysis"
+    lm = Qwen25_7B_Instruct()
+
+    logger.debug(
+        lf.query_prompt(
+            prompt=SamplePrompt(
+                examples=examples,
+                input=task,
+            ),
+            schema=AnalyticalResponse,
+            lm=lm,
+            default=None
+        ),
+    )
+
+    logger.debug(
+        lf.query_prompt(
+            prompt=VerifyPrompt(
+                examples=examples,
+                input=task,
+                solution=solution,
+            ),
+            lm=lm,
+            default=None
         )
     )
-]
 
-analysis = "Verification analysis"
+    logger.debug(
+        lf.query_prompt(
+            prompt=CorrectPrompt(
+                examples=examples,
+                input=task,
+                solution=solution,
+                analysis=analysis,
+            ),
+            schema=CorrectionResponse,
+            lm=lm,
+            default=None
+        )
+    )
 
-sample_prompt = SamplePrompt(
-    examples=examples,
-    input=task,
-)
 
-verify_prompt = VerifyPrompt(
-    examples=examples,
-    solution=solution,
-)
+def sample(
+    task: str,
+    lm: lf.LanguageModel
+) -> AnalyticalResponse | None:
 
-correct_prompt = CorrectPrompt(
-    examples=examples,
-    input=task,
-    solution=solution,
-    analysis=analysis,
-)
-
-print(
-    lf.query_prompt(
-        prompt=sample_prompt,
+    return lf.query(
+        prompt=SamplePrompt(
+            examples=examples,
+            input=task,
+        ),
+        lm=lm,
         schema=AnalyticalResponse,
-        lm=Qwen25_7B_Instruct(),
         default=None
-    ),
-    lf.query_prompt(
-        prompt=verify_prompt,
-        lm=Qwen25_7B_Instruct(),
+    )
+
+
+def verify(
+    task: str,
+    solution: Solution,
+    lm: lf.LanguageModel
+) -> str | None:
+
+    analysis = lf.query(
+        prompt=VerifyPrompt(
+            examples=examples,
+            input=task,
+            solution=solution,
+        ),
+        lm=lm,
         default=None
-    ),
-    lf.query_prompt(
-        prompt=correct_prompt,
+    )
+    success = VerifyPrompt.is_successful_analysis(analysis)
+
+    return analysis, success
+
+
+def correct(
+    task: str,
+    solution: Solution,
+    analysis: str,
+    lm: lf.LanguageModel
+) -> CorrectionResponse | None:
+
+    return lf.query(
+        prompt=CorrectPrompt(
+            examples=examples,
+            input=task,
+            solution=solution,
+            analysis=analysis,
+        ),
         schema=CorrectionResponse,
-        lm=Qwen25_7B_Instruct(),
+        lm=lm,
         default=None
-    ),
-    sep='\n\n' + 100 * '=' + '\n\n',
-)
+    )
+
+
+def sample_verify_correct_one(
+    task: str,
+    lm: lf.LanguageModel,
+    num_retries: int
+) -> (Solution | None, int):
+    logger.info("Starting sample_verify_correct")
+
+    attempts = 0
+    aresp = sample(task, lm)
+    logger.debug(f"AnalyticalResponse: {aresp}")
+
+    if aresp is None:
+        logger.critical("Found None analytical response")
+        return None, attempts
+
+    solution = aresp.solution
+
+    analysis, success = verify(task, solution, lm)
+    logger.debug(f"Verification success: {success}, analysis: {analysis}")
+
+    if analysis is None:
+        logger.critical("Found None verification analysis")
+        return None, attempts
+
+    elif success:
+        logger.info(f"Verified solution immediately: {solution}")
+        return solution, attempts
+
+    else:
+        for attempts in range(1, num_retries + 1):
+            logger.debug(f"correct-verify attempt: {attempts}")
+
+            cresp = correct(task, solution, analysis, lm)
+            logger.debug(f"CorrectionResponse: {cresp}")
+
+            if cresp is None:
+                logger.critical("Found None correction response")
+                return None, attempts
+
+            solution = cresp.solution
+
+            analysis, success = verify(task, solution, lm)
+            logger.debug(f"Verification success: {success}, "
+                         f"analysis: {analysis}")
+
+            if analysis is None:
+                logger.critical("Found None verification analysis")
+                return None, attempts
+
+            elif success:
+                logger.info(f"Verified solution in {attempts} attempts")
+                return solution, attempts
+
+        return None, attempts
+
+
+def sample_verify_correct(
+    task: str,
+    lm: lf.LanguageModel,
+    num_samples: int,
+    num_retries: int,
+) -> list[(Solution | None, int)]:
+    task_id = task[:20]
+
+    logger.info(f"Start sample_verify_correct for task {task_id}")
+
+    map_iterator = lf.concurrent_map(
+        func=lambda task: sample_verify_correct_one(task, lm, num_retries),
+        parallel_inputs=[task] * num_samples,
+        show_progress=True,
+    )
+
+    res = []
+    for _, output, error in map_iterator:
+        res.append(output)
+        if error:
+            logger.warning(f"Error response: {error}")
+
+    logger.info(f"End sample_verify_correct for task {task_id}")
+
+    return res
+
+
+if __name__ == '__main__':
+    logger.setLevel(logging.DEBUG)
+
+    log_sample_prompts()
+
+    lm = Qwen25_7B_Instruct()
+    sols = sample_verify_correct(task, lm, num_samples=3, num_retries=3)
+
+    logger.info(f"Solutions: {sols}")
