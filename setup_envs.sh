@@ -13,3 +13,8 @@ conda activate nlp
 
 pip install langfun[all] --pre
 conda deactivate
+
+conda create -n bcb python=3.12 -y
+conda activate bcb
+pip install bigcodebench --upgrade
+conda deactivate
