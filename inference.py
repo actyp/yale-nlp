@@ -240,10 +240,11 @@ def sample_verify_correct(
 
     logger.info(f"End sample_verify_correct for task {task_id}")
 
+    schema_items = [p[0] for p in sols if p is not None]
     vote = majority_vote_or_random(
         schema=Solution,
         schema_title='Solution',
-        schema_items=list(filter(None, sols)),
+        schema_items=schema_items,
         lm=lm,
     )
 
