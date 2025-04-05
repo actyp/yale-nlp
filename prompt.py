@@ -101,16 +101,16 @@ class VerifyPrompt(CommonPrompt):
 
     solution_title = 'PROPOSED SOLUTION'
     solution: Solution
-    answer_trigger_success = "The proposed solution is correct"
-    answer_trigger_failure = "The proposed solution is incorrect"
+    answer_trigger_success = f"The {solution_title} is correct"
+    answer_trigger_failure = f"The {solution_title} is incorrect"
 
     request_template = lf.Template(
         "You are an expert at planning trips. "
         "You are given a {{ input_title }} of Trip Planning request, "
         "and a {{ solution_title }}. Your job is to:\n"
         "1. List all constraints in the TASK.\n"
-        "2. Verify if the PROPOSED SOLUTION satisfies each of the constraints "
-        "with justifications.\n"
+        "2. Verify if the {{ solution_title }} satisfies each of the "
+        "constraints with justifications.\n"
         "3. Write a line of the form \"{{ answer_trigger_success }}\" "
         "or \"{{ answer_trigger_failure }}\" at the end of your "
         "response based on your analysis."
@@ -123,6 +123,8 @@ class VerifyPrompt(CommonPrompt):
         elif VerifyPrompt.answer_trigger_success in analysis:
             return True
         elif VerifyPrompt.answer_trigger_failure in analysis:
+            return False
+        else:
             return False
 
 
@@ -163,7 +165,7 @@ class CorrectPrompt(CommonPrompt):
         "You are an expert at planning trips. "
         "You are given a {{ input_title }} of Trip Planning request. "
         "You are also given pairs of "
-        "({{ solution_title }}, {{ analysis_title }})."
+        "({{ solution_title }}, {{ analysis_title }}). "
         "Your job is to outline your step-by-step thought process for "
         "deriving a new solution."
     )
