@@ -33,10 +33,10 @@ class CommonPrompt(lf.structured.Mapping):
     example_title = "Here are a few example tasks and solutions:"
 
     preamble = (
-        "You are an expert at planning trips. "
-        "You are given a few constraints regarding the cities to visit and "
-        "the durations of staying at each city. "
-        "You are also given the flight information between the cities."
+        "You are an expert at python programming. "
+        "You are given the required imports for the function body. "
+        "You are given the function signature that needs to be implemented. "
+        "You are given the PEP257-structured docstring of the function."
     )
 
     def mapping_input_repr(self, input) -> str:
@@ -105,8 +105,8 @@ class VerifyPrompt(CommonPrompt):
     answer_trigger_failure = f"The {solution_title} is incorrect"
 
     request_template = lf.Template(
-        "You are an expert at planning trips. "
-        "You are given a {{ input_title }} of Trip Planning request, "
+        "You are an expert at python programming. "
+        "You are given a {{ input_title }} of python code generation, "
         "and a {{ solution_title }}. Your job is to:\n"
         "1. List all constraints in the TASK.\n"
         "2. Verify if the {{ solution_title }} satisfies each of the "
@@ -162,10 +162,10 @@ class CorrectPrompt(CommonPrompt):
     analysis_title = 'ANALYSIS'
 
     request_template = lf.Template(
-        "You are an expert at planning trips. "
-        "You are given a {{ input_title }} of Trip Planning request. "
+        "You are an expert at python programming. "
+        "You are given a {{ input_title }} of python code generation. "
         "You are also given pairs of "
         "({{ solution_title }}, {{ analysis_title }}). "
         "Your job is to outline your step-by-step thought process for "
-        "deriving a new solution."
+        "deriving a new corrected solution."
     )

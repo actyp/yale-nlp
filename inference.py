@@ -1,8 +1,9 @@
 from schema import Solution, AnalyticalResponse, CorrectionResponse
 from prompt import SamplePrompt, VerifyPrompt, CorrectPrompt
+from schema import examples, task, test_case_str
 from local_models import Qwen25_7B_Instruct
-from schema import examples, solution
 import langfun as lf
+import unittest
 import logging
 import random
 
@@ -16,30 +17,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-task = ("""\
-You plan to visit 6 European cities for 16 days in total. You only take \
-direct flights to commute between cities. On the last day of your visit to \
-each city, you can take a direct flight to the next city and arrive on the \
-same day. Both the day you arrive and the day you depart count toward the \
-total number of days spent in each city. You would like to visit Lyon for \
-3 days. You plan to stay in Athens for 4 days. You would like to visit \
-Dubrovnik for 2 days. You plan to stay in Porto for 4 days. You have to \
-attend a workshop in Porto between day 11 and day 14. You would like to \
-visit Helsinki for 5 days. From day 5 to day 9, there is a annual show you \
-want to attend in Helsinki. You would like to visit Milan for 3 days.
-
-Here are the cities that have direct flights:
- Athens and Milan, Milan and Porto, Porto and Lyon, Athens and Dubrovnik, \
- Dubrovnik and Helsinki, Helsinki and Milan.
-
-Find a trip plan of visiting the cities for 16 days by taking direct flights \
-to commute between them.\
-""")
-
 
 def log_sample_prompts():
-    analysis = "Verification analysis"
     lm = Qwen25_7B_Instruct()
+    solution = examples[0].output.solution
+    analysis = examples[0].output.analysis
 
     logger.debug(
         lf.query_prompt(
@@ -155,8 +137,10 @@ def majority_vote_or_random(
     )
 
     if vote is not None:
+        logger.info("Got majority vote")
         return vote
     else:
+        logger.info("Picking majority vote in random")
         return random.choice(schema_items)
 
 
@@ -251,12 +235,27 @@ def sample_verify_correct(
     return vote, sols
 
 
+def eval_func(sol, test_case_str):
+    full_code = sol.source + '\n' + test_case_str
+    global_ns = {}
+    exec(full_code, global_ns)
+
+    test_cases = global_ns['TestCases']
+    logger.info(type(test_cases))
+
+    suite = unittest.TestLoader().loadTestsFromTestCase(test_cases)
+    unittest.TextTestRunner().run(suite)
+
+
 if __name__ == '__main__':
     logger.setLevel(logging.DEBUG)
 
     log_sample_prompts()
 
     lm = Qwen25_7B_Instruct()
-    vote, sols = sample_verify_correct(task, lm, num_samples=3, num_retries=3)
+    sol, sols = sample_verify_correct(task, lm, num_samples=3, num_retries=3)
 
-    logger.info(f"Solutions: {sols}\n\nMajority Vote: {vote}")
+    logger.info(f"Solutions: {sols}")
+    logger.info(f"Majority Vote: {sol}")
+
+    eval_func(sol, test_case_str)
