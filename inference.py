@@ -4,10 +4,11 @@ from local_models import Qwen25_7B_Instruct
 from schema import examples, solution
 import langfun as lf
 import logging
+import random
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
+    format='%(asctime)s [%(levelname)s] (%(thread)d) %(message)s',
     handlers=[
         logging.FileHandler("inference.log"),
         logging.StreamHandler()
@@ -135,6 +136,30 @@ def correct(
     )
 
 
+def majority_vote_or_random(
+    schema: any,
+    schema_title: str,
+    schema_items: list[any],
+    lm: lf.LanguageModel,
+):
+    if not schema_items:
+        return None
+
+    vote = lf.query(
+        prompt='What is the majority {{schema_title}} from {{schema_items}}',
+        schema=schema,
+        schema_title=schema_title,
+        schema_items=schema_items,
+        lm=lm,
+        default=None,
+    )
+
+    if vote is not None:
+        return vote
+    else:
+        return random.choice(schema_items)
+
+
 def sample_verify_correct_one(
     task: str,
     lm: lf.LanguageModel,
@@ -207,15 +232,22 @@ def sample_verify_correct(
         show_progress=True,
     )
 
-    res = []
+    sols = []
     for _, output, error in map_iterator:
-        res.append(output)
+        sols.append(output)
         if error:
             logger.warning(f"Error response: {error}")
 
     logger.info(f"End sample_verify_correct for task {task_id}")
 
-    return res
+    vote = majority_vote_or_random(
+        schema=Solution,
+        schema_title='Solution',
+        schema_items=list(filter(None, sols)),
+        lm=lm,
+    )
+
+    return vote, sols
 
 
 if __name__ == '__main__':
@@ -224,6 +256,6 @@ if __name__ == '__main__':
     log_sample_prompts()
 
     lm = Qwen25_7B_Instruct()
-    sols = sample_verify_correct(task, lm, num_samples=3, num_retries=3)
+    vote, sols = sample_verify_correct(task, lm, num_samples=3, num_retries=3)
 
-    logger.info(f"Solutions: {sols}")
+    logger.info(f"Solutions: {sols}\n\nMajority Vote: {vote}")
