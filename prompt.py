@@ -27,9 +27,9 @@ class CommonPrompt(lf.structured.Mapping):
         """
     )
 
-    input_title = 'TASK'
-    schema_title = 'SOLUTION_TYPE'
-    output_title = 'SOLUTION'
+    input_title = "TASK"
+    schema_title = "SOLUTION_TYPE"
+    output_title = "SOLUTION"
     example_title = "Here are a few example tasks and solutions:"
 
     preamble = (
@@ -40,12 +40,12 @@ class CommonPrompt(lf.structured.Mapping):
     )
 
     def mapping_input_repr(self, input) -> str:
-        return lf.MappingExample(
-            input=input
-        ).input_repr(self.protocol, verbose=False, compact=False)
+        return lf.MappingExample(input=input).input_repr(
+            self.protocol, verbose=False, compact=False
+        )
 
 
-@pg.use_init_args(['input'])
+@pg.use_init_args(["input"])
 class SamplePrompt(CommonPrompt):
     """
     Sample prompt class.
@@ -73,7 +73,7 @@ class SamplePrompt(CommonPrompt):
     )
 
 
-@pg.use_init_args(['input', 'solution'])
+@pg.use_init_args(["input", "solution"])
 class VerifyPrompt(CommonPrompt):
     """
     Verify prompt class.
@@ -99,7 +99,7 @@ class VerifyPrompt(CommonPrompt):
     {{ mapping_input_repr(solution) }}
     """
 
-    solution_title = 'PROPOSED SOLUTION'
+    solution_title = "PROPOSED SOLUTION"
     solution: Solution
     answer_trigger_success = f"The {solution_title} is correct"
     answer_trigger_failure = f"The {solution_title} is incorrect"
@@ -111,8 +111,8 @@ class VerifyPrompt(CommonPrompt):
         "1. List all constraints in the TASK.\n"
         "2. Verify if the {{ solution_title }} satisfies each of the "
         "constraints with justifications.\n"
-        "3. Write a line of the form \"{{ answer_trigger_success }}\" "
-        "or \"{{ answer_trigger_failure }}\" at the end of your "
+        '3. Write a line of the form "{{ answer_trigger_success }}" '
+        'or "{{ answer_trigger_failure }}" at the end of your '
         "response based on your analysis."
     )
 
@@ -128,7 +128,7 @@ class VerifyPrompt(CommonPrompt):
             return False
 
 
-@pg.use_init_args(['input', 'solution', 'analysis'])
+@pg.use_init_args(["input", "solution", "analysis"])
 class CorrectPrompt(CommonPrompt):
     """
     Correct prompt class.
@@ -158,8 +158,8 @@ class CorrectPrompt(CommonPrompt):
 
     solution: Solution
     analysis: str
-    solution_title = 'PROPOSED SOLUTION'
-    analysis_title = 'ANALYSIS'
+    solution_title = "PROPOSED SOLUTION"
+    analysis_title = "ANALYSIS"
 
     request_template = lf.Template(
         "You are an expert at python programming. "
@@ -168,4 +168,44 @@ class CorrectPrompt(CommonPrompt):
         "({{ solution_title }}, {{ analysis_title }}). "
         "Your job is to outline your step-by-step thought process for "
         "deriving a new corrected solution."
+    )
+
+
+@pg.use_init_args(["input", "solutions"])
+class MultiChoicePrompt(CommonPrompt):
+    """
+    MultiChoice prompt class.
+
+    {{ preamble }}
+
+    {% if examples -%}
+    {{ example_title }}
+
+    {% for example in examples -%}
+    {{ mapping_template.render(example=example) }}
+    {% endfor %}
+
+    {% endif -%}
+
+    {{ request_template.render(input_title=input_title) }}
+
+    {{ input_title }}:
+    {{ input }}
+
+    {% for solution in solutions -%}
+        {{ solution_title }}:
+        {{ mapping_input_repr(solution) }}
+    {% endfor %}
+
+    """
+
+    solutions: list[Solution]
+    solution_title = "PROPOSED SOLUTION"
+
+    request_template = lf.Template(
+        "You are an expert at python programming. "
+        "You are given a {{ input_title }} of python code generation. "
+        "You are also given a set of possible solutions. "
+        "Your job is to outline your step-by-step thought process "
+        "for selecting the best solution"
     )

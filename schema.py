@@ -10,9 +10,7 @@ class Solution(lf.PythonCode):
 class AnalyticalResponse(pg.Object):
     "Response containing analytical constraints and final solution."
 
-    analysis: Annotated[
-        str, "List all the constraints in the problem."
-    ]
+    analysis: Annotated[str, "List all the constraints in the problem."]
 
     solution: Annotated[
         Solution, "The final solution that satisfies all the constraints."
@@ -24,6 +22,19 @@ class CorrectionResponse(pg.Object):
 
     thought: Annotated[
         str, "Outline your step-by-step thought process for deriving a new solution."
+    ]
+
+    solution: Annotated[
+        Solution, "The new solution that satisfies all the constraints."
+    ]
+
+
+class MultiChoiceResponse(pg.Object):
+    "Response containing thoughts and multiple choice solution."
+
+    thought: Annotated[
+        str,
+        "Outline your step-by-step thought process for selecting the best solution.",
     ]
 
     solution: Annotated[
@@ -61,7 +72,8 @@ def task_func(numbers=list(range(1, 3))):
         schema=AnalyticalResponse,
         output=AnalyticalResponse(
             analysis="Analysis of the derived code",
-            solution=Solution("""\
+            solution=Solution(
+                """\
 import itertools
 from random import shuffle
 
@@ -78,11 +90,13 @@ def task_func(numbers=list(range(1, 3))):
     avg_sum_diffs = sum_diffs / len(permutations)
 
     return avg_sum_diffs\
-""")),
+"""
+            ),
+        ),
     )
 ]
 
-task = ("""\
+task = """\
 import collections
 import random
 import string
@@ -113,9 +127,9 @@ def task_func(length=100):
     >>> task_func(10)
     {'h': 1, 'B': 2, 'O': 1, 'L': 1, 'm': 1, 'j': 1, 'u': 1, 'E': 1, 'V': 1}
     \"\"\"
-""")
+"""
 
-test_case_str = ("""\
+test_case_str = """\
 import unittest
 import string
 class TestCases(unittest.TestCase):
@@ -141,4 +155,4 @@ class TestCases(unittest.TestCase):
         # Test handling of negative length input
         with self.assertRaises(ValueError, msg="Negative length should raise an error"):
             task_func(-1)
-""")
+"""

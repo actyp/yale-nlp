@@ -12,6 +12,8 @@ conda create -n nlp python=3.12 -y
 conda activate nlp
 
 pip install langfun[all] --pre
+pip install datasets
+pip install -U "huggingface_hub[cli]"
 conda deactivate
 
 conda create -n bcb python=3.12 -y
