@@ -99,5 +99,6 @@ if __name__ == "__main__":
     for method in args.methods:
         filename = f"{model_name}_{method}_m{num_samples}_n{num_retries}.jsonl"
         out_file = os.path.join(out_dir, filename)
+        os.close(os.open(out_file, os.O_CREAT | os.O_TRUNC))
 
         main(model_id, dataset, method, num_samples, num_retries, out_file)
