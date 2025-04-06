@@ -1,4 +1,5 @@
 from inference import sample_once, sample_eval, sample_verify, sample_vote
+from local_models import SUPPORTED_MODELS
 from data_parse import get_dataset
 import langfun as lf
 import argparse
@@ -47,8 +48,10 @@ def parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
+    available_models = [m.model_id for m in SUPPORTED_MODELS]
     parser.add_argument("--model_id", required=True,
-                        help="The id of the model to use.")
+                        help="The id of the model to use. "
+                        f"Available: {available_models}")
 
     parser.add_argument("--num_samples", type=int, default=8,
                         help="The number of samples (m) to use.")

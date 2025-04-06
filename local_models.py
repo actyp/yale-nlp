@@ -12,7 +12,6 @@ class LocalModelInfo(lf.ModelInfo):
 SUPPORTED_MODELS = [
     LocalModelInfo(
         model_id="Qwen/Qwen2.5-7B-Instruct",
-        alias="Qwen2.5-7B-Instruct",
         model_type="instruction-tuned",
         url="https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
         context_length=lf.ModelInfo.ContextLength(
