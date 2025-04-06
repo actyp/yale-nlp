@@ -80,7 +80,7 @@ def multiple_choice(
 
 
 def majority_vote_or_random(
-    solutions: list[Solutions],
+    solutions: list[Solution],
     lm: lf.LanguageModel,
 ) -> Solution | None:
     if not solutions:

@@ -6,6 +6,9 @@ import json
 import os
 
 
+METHODS = ["sample_once", "sample_vote", "sample_eval", "sample_verify"]
+
+
 def main(model_id, dataset, method, num_samples, num_retries, out_file):
     # Load the model
     lm = lf.LanguageModel.get(model_id)
@@ -34,47 +37,57 @@ def main(model_id, dataset, method, num_samples, num_retries, out_file):
             "raw_solution": solution.source,
         }
         # dump save_dict to jsonl file -- in append mode
-        with open(out_file, "a+") as f:
+        with open(out_file, "a") as f:
             f.write(json.dumps(save_dict) + "\n")
 
 
-if __name__ == "__main__":
+def parser():
+    parser = argparse.ArgumentParser(
+        usage="%(prog)s [options]",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
-    parser = argparse.ArgumentParser(description="Run SETS with model.")
-    parser.add_argument("--model_id", type=str, required=True,
-                        help="The ID of the model to use.")
-    parser.add_argument("--num_samples", type=int, default=3,
+    parser.add_argument("--model_id", required=True,
+                        help="The id of the model to use.")
+
+    parser.add_argument("--num_samples", type=int, default=8,
                         help="The number of samples (m) to use.")
-    parser.add_argument("--num_retries", type=int, default=3,
+
+    parser.add_argument("--num_retries", type=int, default=4,
                         help="The number of retries (n) to use.")
-    args = parser.parse_args()
 
-    cwd = os.getcwd()
-    sol_dir = os.path.join(cwd, "evaluation")
+    parser.add_argument("--methods", nargs='+',
+                        default=METHODS, choices=METHODS,
+                        help="list of methods to use for inference")
 
-    # Create directory if it doesn't exist
-    os.makedirs(sol_dir, exist_ok=True)
+    parser.add_argument("--dataset_id", default="bigcode/bigcodebench",
+                        help="The id of the dataset to use.")
 
-    dataset_id = "bigcode/bigcodebench"
+    parser.add_argument("--dataset_split", default="v0.1.4",
+                        help="The split of the dataset to use.")
 
-    methods = ["sample_once", "sample_vote", "sample_eval", "sample_verify"]
+    parser.add_argument("--out_dir", type=str, default="./evaluation",
+                        help="The directory to store the results.")
 
-    # Load the dataset
-    dataset = get_dataset(dataset_id, streaming=True, split="v0.1.4")
+    return parser
 
-    num_samples = args.num_samples
-    num_retries = args.num_retries
+
+if __name__ == "__main__":
+    args = parser().parse_args()
+
+    out_dir = args.out_dir
+    os.makedirs(out_dir, exist_ok=True)
+
+    dataset = get_dataset(args.dataset_id, args.dataset_split)
 
     model_id = args.model_id
     model_name = model_id.replace("/", "--")
 
-    for method in methods:
-        filename = f"{model_name}_{method}_m{num_samples}_n{num_retries}.jsonl"
-        out_file = os.path.join(sol_dir, filename)
+    num_samples = args.num_samples
+    num_retries = args.num_retries
 
-        # Create file if it doesn't exist
-        if not os.path.exists(out_file):
-            f = open(out_file, "w")
-            f.close()
+    for method in args.methods:
+        filename = f"{model_name}_{method}_m{num_samples}_n{num_retries}.jsonl"
+        out_file = os.path.join(out_dir, filename)
 
         main(model_id, dataset, method, num_samples, num_retries, out_file)
