@@ -31,11 +31,13 @@ def main(model_id, dataset, method, num_samples, num_retries, out_file):
         func, args = funcargs[method]
         solution = func(task_id, complete_prompt, *args)
 
+        solution_source = solution.source if solution is not None else ""
+
         # Create jsonl file:
         save_dict = {
             "task_id": task_id,
-            "solution": solution.source,
-            "raw_solution": solution.source,
+            "solution": solution_source,
+            "raw_solution": solution_source,
         }
         # dump save_dict to jsonl file -- in append mode
         with open(out_file, "a") as f:
