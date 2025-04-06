@@ -1,74 +1,15 @@
 from schema import *
 from prompt import *
-from local_models import Qwen25_7B_Instruct
 import langfun as lf
-import unittest
 import logging
 import random
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] (%(thread)d) %(message)s",
+    format="%(asctime)s [%(levelname)s] (%(thread)d): <%(funcName)s> %(message)s",
     handlers=[logging.FileHandler("inference.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
-
-
-def log_sample_prompts():
-    lm = Qwen25_7B_Instruct()
-    solution = examples[0].output.solution
-    analysis = examples[0].output.analysis
-
-    logger.debug(
-        lf.query_prompt(
-            prompt=SamplePrompt(
-                examples=examples,
-                input=task,
-            ),
-            schema=AnalyticalResponse,
-            lm=lm,
-            default=None,
-        ),
-    )
-
-    logger.debug(
-        lf.query_prompt(
-            prompt=VerifyPrompt(
-                examples=examples,
-                input=task,
-                solution=solution,
-            ),
-            lm=lm,
-            default=None,
-        )
-    )
-
-    logger.debug(
-        lf.query_prompt(
-            prompt=CorrectPrompt(
-                examples=examples,
-                input=task,
-                solution=solution,
-                analysis=analysis,
-            ),
-            schema=CorrectionResponse,
-            lm=lm,
-            default=None,
-        )
-    )
-
-    logger.debug(
-        lf.query_prompt(
-            prompt=MultiChoicePrompt(
-                examples=examples,
-                input=task,
-                solutions=[solution, solution],
-            ),
-            schema=MultiChoiceResponse,
-            lm=lm,
-            default=None,
-        )
-    )
 
 
 def sample(task: str, lm: lf.LanguageModel) -> AnalyticalResponse | None:
@@ -117,20 +58,39 @@ def correct(
     )
 
 
+def multiple_choice(
+    task: str,
+    solutions: list[Solution],
+    lm: lf.LanguageModel,
+) -> MultipleChoiceResponse | None:
+    if not solutions:
+        return None
+
+    with lm.sampling_options.override(temperature=0):
+        return lf.query(
+            prompt=MultipleChoicePrompt(
+                examples=examples,
+                input=task,
+                solutions=solutions,
+            ),
+            schema=MultipleChoiceResponse,
+            lm=lm,
+            default=None,
+        )
+
+
 def majority_vote_or_random(
-    schema: any,
-    schema_title: str,
-    schema_items: list[any],
+    solutions: list[Solutions],
     lm: lf.LanguageModel,
 ) -> Solution | None:
-    if not schema_items:
+    if not solutions:
         return None
 
     vote = lf.query(
         prompt="What is the majority {{schema_title}} from {{schema_items}}",
-        schema=schema,
-        schema_title=schema_title,
-        schema_items=schema_items,
+        schema=Solution,
+        schema_title='Solution',
+        schema_items=solutions,
         lm=lm,
         default=None,
     )
@@ -139,34 +99,17 @@ def majority_vote_or_random(
         logger.info("Got majority vote")
         return vote
     else:
-        logger.info("Picking majority vote in random")
-        return random.choice(schema_items)
-
-
-def multi_choice(
-    task: str,
-    solutions: list[Solution],
-    lm: lf.LanguageModel,
-) -> Solution | None:
-    if not schema_items:
-        return None
-
-    return lf.query(
-        prompt=MultiChoicePrompt(
-            input=task,
-            examples=examples,
-            solutions=solutions,
-        ),
-        schema=MultiChoiceResponse,
-        lm=lm,
-        default=None,
-    )
+        logger.info("Randomly choosing majority vote")
+        return random.choice(solutions)
 
 
 def sample_verify_correct(
-    task: str, lm: lf.LanguageModel, num_retries: int
+    task_id: str,
+    task: str,
+    lm: lf.LanguageModel,
+    num_retries: int
 ) -> (Solution | None, bool, int):
-    logger.info("Starting sample_verify_correct")
+    logger.info(f"Start task {task_id}")
 
     attempts = 0
     aresp = sample(task, lm)
@@ -191,7 +134,7 @@ def sample_verify_correct(
 
     else:
         for attempts in range(1, num_retries + 1):
-            logger.debug(f"correct-verify attempt: {attempts}")
+            logger.debug(f"Correct-Verify attempt: {attempts}")
 
             cresp = correct(task, solution, analysis, lm)
             logger.debug(f"CorrectionResponse: {cresp}")
@@ -203,57 +146,38 @@ def sample_verify_correct(
             solution = cresp.solution
 
             analysis, success = verify(task, solution, lm)
-            logger.debug(f"Verification success: {success}, " f"analysis: {analysis}")
+            logger.debug(f"Verification success: {success}, analysis: {analysis}")
 
             if analysis is None:
                 logger.critical("Found None verification analysis")
                 return solution, success, attempts
 
             elif success:
-                logger.info(f"Verified solution in {attempts} attempts")
+                logger.info(f"Verified solution in {attempts} attempts: {solution}")
                 return solution, success, attempts
 
         return solution, success, attempts
 
 
-def sample_eval(
+def sample_once(
+    task_id: str,
     task: str,
     lm: lf.LanguageModel,
-    num_samples: int,
 ) -> Solution | None:
-    task_id = task[:20]
+    logger.info(f"Start task {task_id}")
+    aresp = sample(task, lm)
 
-    logger.info(f"Start sample_eval for task {task_id}")
-
-    map_iterator = lf.concurrent_map(
-        func=lambda task: sample(task, lm),
-        parallel_inputs=[task] * num_samples,
-        show_progress=True,
-    )
-
-    sols = []
-    for _, output, error in map_iterator:
-        sols.append(output)
-        if error:
-            logger.warning(f"Error response: {error}")
-
-    logger.info(f"End sample_eval for task {task_id}")
-
-    schema_items = sols
-    choice = multi_choice(sols, lm)
-    logger.debug(f"MultiChoiceResponse: {choice}")
-
-    return choice.solution
+    logger.info(f"End task {task_id}: {aresp}")
+    return aresp.solution if aresp is not None else None
 
 
 def sample_vote(
+    task_id: str,
     task: str,
     lm: lf.LanguageModel,
     num_samples: int,
 ) -> Solution | None:
-    task_id = task[:20]
-
-    logger.info(f"Start sample_vote for task {task_id}")
+    logger.info(f"Start task {task_id}")
 
     map_iterator = lf.concurrent_map(
         func=lambda task: sample(task, lm),
@@ -263,68 +187,81 @@ def sample_vote(
 
     sols = []
     for _, output, error in map_iterator:
-        sols.append(output)
         if error:
             logger.warning(f"Error response: {error}")
+        elif output is not None:
+            sols.append(output)
 
-    logger.info(f"End sample_vote for task {task_id}")
+    logger.info(f"Solutions before majority vote: {sols}")
 
-    schema_items = sols
-    vote = majority_vote_or_random(
-        schema=Solution,
-        schema_title="Solution",
-        schema_items=schema_items,
-        lm=lm,
-    )
+    vote = majority_vote_or_random(sols, lm)
 
+    logger.info(f"End task {task_id}: {vote}")
     return vote
 
 
+def sample_eval(
+    task_id: str,
+    task: str,
+    lm: lf.LanguageModel,
+    num_samples: int,
+) -> Solution | None:
+    logger.info(f"Start task {task_id}")
+
+    map_iterator = lf.concurrent_map(
+        func=lambda task: sample(task, lm),
+        parallel_inputs=[task] * num_samples,
+        show_progress=True,
+    )
+
+    sols = []
+    for _, output, error in map_iterator:
+        if error:
+            logger.warning(f"Error response: {error}")
+        elif output is not None:
+            sols.append(output)
+
+    mresp = multiple_choice(task, sols, lm)
+
+    logger.info(f"End task {task_id}: {mresp}")
+    return mresp.solution if mresp is not None else None
+
+
 def sample_verify(
+    task_id: str,
     task: str,
     lm: lf.LanguageModel,
     num_samples: int,
     num_retries: int,
 ) -> Solution | None:
-    task_id = task[:20]
-
-    logger.info(f"Start sample_verify for task {task_id}")
+    logger.info(f"Start task {task_id}")
 
     map_iterator = lf.concurrent_map(
-        func=lambda task: sample_verify_correct(task, lm, num_retries),
-        parallel_inputs=[task] * num_samples,
+        func=lambda tinfo: sample_verify_correct(*tinfo, lm, num_retries),
+        parallel_inputs=[(task_id, task)] * num_samples,
         show_progress=True,
     )
 
     sols = []
     for _, output, error in map_iterator:
-        sols.append(output)
         if error:
             logger.warning(f"Error response: {error}")
-
-    logger.info(f"End sample_verify for task {task_id}")
+        elif output is not None:
+            sols.append(output)
 
     verified = []
-    non_verified = []
+    unverified = []
     for sol, success, _ in sols:
         if success:
             verified.append(sol)
         else:
-            non_verified.append(sol)
+            unverified.append(sol)
 
-    schema_items = verified or non_verified
+    logger.info(f"Verified Solutions before majority vote: {verified}")
+    logger.info(f"Unverified Solutions before majority vote: {unverified}")
 
-    vote = majority_vote_or_random(
-        schema=Solution,
-        schema_title="Solution",
-        schema_items=schema_items,
-        lm=lm,
-    )
+    mcsols = verified or unverified
+    vote = majority_vote_or_random(mcsols, lm)
 
+    logger.info(f"End task {task_id}: {vote}")
     return vote
-
-
-if __name__ == "__main__":
-    logger.setLevel(logging.DEBUG)
-
-    log_sample_prompts()
