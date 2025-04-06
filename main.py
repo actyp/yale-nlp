@@ -7,7 +7,12 @@ import json
 import os
 
 
-METHODS = ["sample_once", "sample_vote", "sample_eval", "sample_verify"]
+METHODS = [
+    "sample_once",
+    "sample_vote",
+    "sample_eval",
+    "sample_verify",
+]
 
 
 def main(model_id, dataset, method, num_samples, num_retries, out_file):
@@ -31,7 +36,7 @@ def main(model_id, dataset, method, num_samples, num_retries, out_file):
         func, args = funcargs[method]
         solution = func(task_id, complete_prompt, *args)
 
-        solution_source = solution.source if solution is not None else ""
+        solution_source = solution.source if solution is not None else "None"
 
         # Create jsonl file:
         save_dict = {

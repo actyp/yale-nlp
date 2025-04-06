@@ -182,15 +182,14 @@ def sample_vote(
     map_iterator = lf.concurrent_map(
         func=lambda task: sample(task, lm),
         parallel_inputs=[task] * num_samples,
-        show_progress=True,
     )
 
     sols = []
-    for _, output, error in map_iterator:
+    for _, aresp, error in map_iterator:
         if error:
             logger.warning(f"Error response: {error}")
-        elif output is not None:
-            sols.append(output)
+        elif aresp is not None:
+            sols.append(aresp.solution)
 
     logger.info(f"Solutions before majority vote: {sols}")
 
@@ -211,15 +210,14 @@ def sample_eval(
     map_iterator = lf.concurrent_map(
         func=lambda task: sample(task, lm),
         parallel_inputs=[task] * num_samples,
-        show_progress=True,
     )
 
     sols = []
-    for _, output, error in map_iterator:
+    for _, aresp, error in map_iterator:
         if error:
             logger.warning(f"Error response: {error}")
-        elif output is not None:
-            sols.append(output)
+        elif aresp is not None:
+            sols.append(aresp.solution)
 
     mresp = multiple_choice(task, sols, lm)
 
@@ -239,19 +237,18 @@ def sample_verify(
     map_iterator = lf.concurrent_map(
         func=lambda tinfo: sample_verify_correct(*tinfo, lm, num_retries),
         parallel_inputs=[(task_id, task)] * num_samples,
-        show_progress=True,
     )
-
-    sols = []
-    for _, output, error in map_iterator:
-        if error:
-            logger.warning(f"Error response: {error}")
-        elif output is not None:
-            sols.append(output)
 
     verified = []
     unverified = []
-    for sol, success, _ in sols:
+    for _, triple, error in map_iterator:
+        if error:
+            logger.warning(f"Error response: {error}")
+        sol, success, _ = triple
+
+        if sol is None:
+            continue
+
         if success:
             verified.append(sol)
         else:
@@ -260,8 +257,8 @@ def sample_verify(
     logger.info(f"Verified Solutions before majority vote: {verified}")
     logger.info(f"Unverified Solutions before majority vote: {unverified}")
 
-    mcsols = verified or unverified
-    vote = majority_vote_or_random(mcsols, lm)
+    sols = verified or unverified
+    vote = majority_vote_or_random(sols, lm)
 
     logger.info(f"End task {task_id}: {vote}")
     return vote
