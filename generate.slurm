@@ -9,7 +9,7 @@
 #SBATCH --mem=30G
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
-#SBATCH --constraint=rtx3090
+#SBATCH --constraint=a5000
 #SBATCH --cpus-per-task=3
 
 
