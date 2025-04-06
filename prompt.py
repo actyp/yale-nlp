@@ -172,9 +172,9 @@ class CorrectPrompt(CommonPrompt):
 
 
 @pg.use_init_args(["input", "solutions"])
-class MultiChoicePrompt(CommonPrompt):
+class MultipleChoicePrompt(CommonPrompt):
     """
-    MultiChoice prompt class.
+    MultipleChoice prompt class.
 
     {{ preamble }}
 
@@ -208,4 +208,69 @@ class MultiChoicePrompt(CommonPrompt):
         "You are also given a set of possible solutions. "
         "Your job is to outline your step-by-step thought process "
         "for selecting the best solution"
+    )
+
+
+if __name__ == '__main__':
+    from schema import AnalyticalResponse, CorrectionResponse
+    from schema import MultipleChoiceResponse, examples
+
+    lm = lf.llms.Echo()
+    example = examples[0]
+    task = example.input
+    solution = example.output.solution
+    analysis = example.output.analysis
+
+    def title(msg):
+        sep = '\n' + 100 * '=' + '\n'
+        return f"{sep}{msg}{sep}"
+
+    print(
+        title("Sample prompt"),
+        lf.query_prompt(
+            prompt=SamplePrompt(
+                examples=examples,
+                input=task,
+            ),
+            schema=AnalyticalResponse,
+            lm=lm,
+            default=None,
+        ),
+
+        title("Verify prompt"),
+        lf.query_prompt(
+            prompt=VerifyPrompt(
+                examples=examples,
+                input=task,
+                solution=solution,
+            ),
+            lm=lm,
+            default=None,
+        ),
+
+        title("Correct prompt"),
+        lf.query_prompt(
+            prompt=CorrectPrompt(
+                examples=examples,
+                input=task,
+                solution=solution,
+                analysis=analysis,
+            ),
+            schema=CorrectionResponse,
+            lm=lm,
+            default=None,
+        ),
+
+        title("MultipleChoice prompt"),
+        lf.query_prompt(
+            prompt=MultipleChoicePrompt(
+                examples=examples,
+                input=task,
+                solutions=[solution, solution],
+            ),
+            schema=MultipleChoiceResponse,
+            lm=lm,
+            default=None,
+        ),
+        sep='\n'
     )
