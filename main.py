@@ -1,4 +1,4 @@
-from inference import sample_once, sample_eval, sample_verify, sample_vote
+from inference import sample_once, sample_vote, sample_eval, sample_veco
 from local_models import SUPPORTED_MODELS
 from data_parse import get_dataset
 import langfun as lf
@@ -11,7 +11,7 @@ METHODS = [
     "sample_once",
     "sample_vote",
     "sample_eval",
-    "sample_verify",
+    "sample_veco",
 ]
 
 
@@ -23,7 +23,7 @@ def main(model_id, dataset, method, num_samples, num_retries, out_file):
         "sample_once": (sample_once, [lm]),
         "sample_vote": (sample_vote, [lm, num_samples]),
         "sample_eval": (sample_eval, [lm, num_samples]),
-        "sample_verify": (sample_verify, [lm, num_samples, num_retries]),
+        "sample_veco": (sample_veco, [lm, num_samples, num_retries]),
     }
 
     # Iterate through the dataset

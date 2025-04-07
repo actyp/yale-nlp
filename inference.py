@@ -225,7 +225,7 @@ def sample_eval(
     return mresp.solution if mresp is not None else None
 
 
-def sample_verify(
+def sample_veco(
     task_id: str,
     task: str,
     lm: lf.LanguageModel,
