@@ -66,8 +66,15 @@ def multiple_choice(
     if not solutions:
         return None
 
+    if len(solutions) == 1:
+        logger.info("Only one provided solution")
+        return MultipleChoiceResponse(
+            thought="Only one provided solution",
+            solution=solutions[0],
+        )
+
     with lm.sampling_options.override(temperature=0):
-        return lf.query(
+        choice = lf.query(
             prompt=MultipleChoicePrompt(
                 examples=examples,
                 input=task,
@@ -78,13 +85,28 @@ def multiple_choice(
             default=None,
         )
 
+    if choice is not None:
+        logger.info("Got multiple choice")
+        return choice
+    else:
+        logger.info("Randomly choosing multiple choice")
+        return MultipleChoiceResponse(
+            thought="Randomly chosen solution",
+            solution=random.choice(solutions),
+        )
 
-def majority_vote_or_random(
+
+
+def majority_vote(
     solutions: list[Solution],
     lm: lf.LanguageModel,
 ) -> Solution | None:
     if not solutions:
         return None
+
+    if len(solutions) == 1:
+        logger.info("Only one provided solution")
+        return solutions[0]
 
     vote = lf.query(
         prompt="What is the majority {{schema_title}} from {{schema_items}}",
@@ -146,14 +168,18 @@ def sample_verify_correct(
             solution = cresp.solution
 
             analysis, success = verify(task, solution, lm)
-            logger.debug(f"Verification success: {success}, analysis: {analysis}")
+            logger.debug(
+                f"Verification success: {success}, analysis: {analysis}"
+            )
 
             if analysis is None:
                 logger.critical("Found None verification analysis")
                 return solution, success, attempts
 
             elif success:
-                logger.info(f"Verified solution in {attempts} attempts: {solution}")
+                logger.info(
+                    f"Verified solution in {attempts} attempts: {solution}"
+                )
                 return solution, success, attempts
 
         return solution, success, attempts
@@ -163,12 +189,14 @@ def sample_once(
     task_id: str,
     task: str,
     lm: lf.LanguageModel,
-) -> Solution | None:
+) -> dict[str, Solution | None]:
     logger.info(f"Start task {task_id}")
     aresp = sample(task, lm)
 
     logger.info(f"End task {task_id}: {aresp}")
-    return aresp.solution if aresp is not None else None
+    return {
+        'solution': aresp.solution if aresp is not None else None,
+    }
 
 
 def sample_vote(
@@ -176,7 +204,7 @@ def sample_vote(
     task: str,
     lm: lf.LanguageModel,
     num_samples: int,
-) -> Solution | None:
+) -> dict[str, Solution | None]:
     logger.info(f"Start task {task_id}")
 
     map_iterator = lf.concurrent_map(
@@ -191,12 +219,14 @@ def sample_vote(
         elif aresp is not None:
             sols.append(aresp.solution)
 
-    logger.info(f"Solutions before majority vote: {sols}")
+    logger.info(f"Solutions before majority vote ({len(sols)}): {sols}")
 
-    vote = majority_vote_or_random(sols, lm)
+    sol = majority_vote(sols, lm)
 
-    logger.info(f"End task {task_id}: {vote}")
-    return vote
+    logger.info(f"End task {task_id}: {sol}")
+    return {
+        'solution': sol,
+    }
 
 
 def sample_eval(
@@ -204,7 +234,7 @@ def sample_eval(
     task: str,
     lm: lf.LanguageModel,
     num_samples: int,
-) -> Solution | None:
+) -> dict[str, Solution | None]:
     logger.info(f"Start task {task_id}")
 
     map_iterator = lf.concurrent_map(
@@ -219,10 +249,13 @@ def sample_eval(
         elif aresp is not None:
             sols.append(aresp.solution)
 
+    logger.info(f"Solutions before multiple choice ({len(sols)}): {sols}")
     mresp = multiple_choice(task, sols, lm)
 
     logger.info(f"End task {task_id}: {mresp}")
-    return mresp.solution if mresp is not None else None
+    return {
+        'solution': mresp.solution if mresp is not None else None,
+    }
 
 
 def sample_veco(
@@ -231,7 +264,7 @@ def sample_veco(
     lm: lf.LanguageModel,
     num_samples: int,
     num_retries: int,
-) -> Solution | None:
+) -> dict[str, Solution | None]:
     logger.info(f"Start task {task_id}")
 
     map_iterator = lf.concurrent_map(
@@ -239,26 +272,35 @@ def sample_veco(
         parallel_inputs=[(task_id, task)] * num_samples,
     )
 
-    verified = []
-    unverified = []
+    ver_sols = []
+    unver_sols = []
+    details = []
     for _, triple, error in map_iterator:
         if error:
             logger.warning(f"Error response: {error}")
-        sol, success, _ = triple
+        sol, success, attempts = triple
+
+        details.append((success, attempts))
 
         if sol is None:
             continue
 
         if success:
-            verified.append(sol)
+            ver_sols.append(sol)
         else:
-            unverified.append(sol)
+            unver_sols.append(sol)
 
-    logger.info(f"Verified Solutions before majority vote: {verified}")
-    logger.info(f"Unverified Solutions before majority vote: {unverified}")
+    logger.info(f"Verified Solutions before majority vote "
+                f"({len(ver_sols)}): {ver_sols}")
 
-    sols = verified or unverified
-    vote = majority_vote_or_random(sols, lm)
+    logger.info(f"Unverified Solutions before majority vote "
+                f"({len(unver_sols)}): {unver_sols}")
 
-    logger.info(f"End task {task_id}: {vote}")
-    return vote
+    sols = ver_sols or unver_sols
+    sol = majority_vote(sols, lm)
+
+    logger.info(f"End task {task_id}: {sol}")
+    return {
+        'solution': sol,
+        'details': details,
+    }
