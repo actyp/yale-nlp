@@ -1,8 +1,9 @@
 from inference import sample_once, sample_vote, sample_eval, sample_veco
-from typing import Iterable, Callable, SupportsIndex
 from local_models import SUPPORTED_MODELS
 from data_parse import get_dataset
-import multiprocessing as mp
+from typing import SupportsIndex
+from threading import Lock
+import pyglove as pg
 import langfun as lf
 import argparse
 import json
@@ -17,27 +18,6 @@ METHODS = [
 ]
 
 
-def parallel_process(
-    par_iter: Iterable,
-    par_fun: Callable[any, any],
-    par_arg_gen: Callable[[object, mp.Lock], any],
-    processes: int = None
-):
-    with mp.Manager() as manager:
-        lock = manager.Lock()
-
-        with mp.Pool(processes) as pool:
-            for item in par_iter:
-                pool.apply_async(
-                    par_fun,
-                    args=par_arg_gen(item, lock),
-                    error_callback=lambda e: print(f"Error: {e}", flush=True),
-                )
-
-            pool.close()
-            pool.join()
-
-
 def process_row(
     row: SupportsIndex,
     lm: lf.LanguageModel,
@@ -45,7 +25,7 @@ def process_row(
     num_samples: int,
     num_retries: int,
     out_file: str,
-    out_file_lock: mp.Lock,
+    out_file_lock: Lock,
 ):
     funcargs = {
         "sample_once": (sample_once, [lm]),
@@ -58,19 +38,23 @@ def process_row(
     complete_prompt = row["complete_prompt"]
 
     func, args = funcargs[method]
-    solution = func(task_id, complete_prompt, *args)
+    dct = func(task_id, complete_prompt, *args)
 
+    solution = dct["solution"]
     solution_source = solution.source if solution is not None else "None"
 
-    save_dict = {
+    save_dct = {
         "task_id": task_id,
         "solution": solution_source,
         "raw_solution": solution_source,
     }
 
+    if "details" in dct:
+        save_dct["details"] = dct["details"]
+
     with out_file_lock:
         with open(out_file, "a") as file:
-            file.write(json.dumps(save_dict) + "\n")
+            file.write(json.dumps(save_dct) + "\n")
 
 
 def parser():
@@ -103,8 +87,8 @@ def parser():
     parser.add_argument("--out_dir", type=str, default="./evaluation",
                         help="The directory to store the results.")
 
-    parser.add_argument("--processes", type=int, default=None,
-                        help="Limit the number of parallel processes")
+    parser.add_argument("--max_workers", type=int, default=None,
+                        help="Limit the number of concurrent workers")
 
     return parser
 
@@ -122,16 +106,29 @@ if __name__ == "__main__":
 
     num_samples = args.num_samples
     num_retries = args.num_retries
-    processes = args.processes
 
     for method in args.methods:
-        filename = f"{model_name}_{method}_m{num_samples}_n{num_retries}.jsonl"
-        out_file = os.path.join(out_dir, filename)
+        basename = f"{model_name}_{method}_m{num_samples}_n{num_retries}"
+
+        out_file = os.path.join(out_dir, f"{basename}.jsonl")
         os.close(os.open(out_file, os.O_CREAT | os.O_TRUNC))
 
         lm = lf.LanguageModel.get(model_id)
+        lock = Lock()
 
-        def process_row_arg_gen(row, lock):
-            return (row, lm, method, num_samples, num_retries, out_file, lock)
+        with lf.track_usages(lm) as usages, lf.track_queries() as queries:
+            lf.concurrent_execute(
+                func=lambda row: process_row(
+                    row, lm, method, num_samples, num_retries, out_file, lock
+                ),
+                parallel_inputs=dataset,
+                max_workers=args.max_workers,
+            )
 
-        parallel_process(dataset, process_row, process_row_arg_gen, processes)
+        usages_file = os.path.join(out_dir, f"{basename}_usages.json")
+        with open(usages_file, 'w') as file:
+            json.dump(usages.to_json(), file)
+
+        queries_file = os.path.join(out_dir, f"{basename}_queries.html")
+        with open(queries_file, 'w') as file:
+            file.write(str(pg.view(queries)))
