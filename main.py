@@ -1,6 +1,8 @@
 from inference import sample_once, sample_vote, sample_eval, sample_veco
+from typing import Iterable, Callable, SupportsIndex
 from local_models import SUPPORTED_MODELS
 from data_parse import get_dataset
+import multiprocessing as mp
 import langfun as lf
 import argparse
 import json
@@ -15,10 +17,36 @@ METHODS = [
 ]
 
 
-def main(model_id, dataset, method, num_samples, num_retries, out_file):
-    # Load the model
-    lm = lf.LanguageModel.get(model_id)
+def parallel_process(
+    par_iter: Iterable,
+    par_fun: Callable[any, any],
+    par_arg_gen: Callable[[object, mp.Lock], any],
+    processes: int = None
+):
+    with mp.Manager() as manager:
+        lock = manager.Lock()
 
+        with mp.Pool(processes) as pool:
+            for item in par_iter:
+                pool.apply_async(
+                    par_fun,
+                    args=par_arg_gen(item, lock),
+                    error_callback=lambda e: print(f"Error: {e}", flush=True),
+                )
+
+            pool.close()
+            pool.join()
+
+
+def process_row(
+    row: SupportsIndex,
+    lm: lf.LanguageModel,
+    method: str,
+    num_samples: int,
+    num_retries: int,
+    out_file: str,
+    out_file_lock: mp.Lock,
+):
     funcargs = {
         "sample_once": (sample_once, [lm]),
         "sample_vote": (sample_vote, [lm, num_samples]),
@@ -26,27 +54,23 @@ def main(model_id, dataset, method, num_samples, num_retries, out_file):
         "sample_veco": (sample_veco, [lm, num_samples, num_retries]),
     }
 
-    # Iterate through the dataset
-    for idx, sample in enumerate(iter(dataset)):
-        # Extract the task and test case from the sample
-        task_id = sample["task_id"]
-        complete_prompt = sample["complete_prompt"]
+    task_id = row["task_id"]
+    complete_prompt = row["complete_prompt"]
 
-        # Perform SETS
-        func, args = funcargs[method]
-        solution = func(task_id, complete_prompt, *args)
+    func, args = funcargs[method]
+    solution = func(task_id, complete_prompt, *args)
 
-        solution_source = solution.source if solution is not None else "None"
+    solution_source = solution.source if solution is not None else "None"
 
-        # Create jsonl file:
-        save_dict = {
-            "task_id": task_id,
-            "solution": solution_source,
-            "raw_solution": solution_source,
-        }
-        # dump save_dict to jsonl file -- in append mode
-        with open(out_file, "a") as f:
-            f.write(json.dumps(save_dict) + "\n")
+    save_dict = {
+        "task_id": task_id,
+        "solution": solution_source,
+        "raw_solution": solution_source,
+    }
+
+    with out_file_lock:
+        with open(out_file, "a") as file:
+            file.write(json.dumps(save_dict) + "\n")
 
 
 def parser():
@@ -79,6 +103,9 @@ def parser():
     parser.add_argument("--out_dir", type=str, default="./evaluation",
                         help="The directory to store the results.")
 
+    parser.add_argument("--processes", type=int, default=None,
+                        help="Limit the number of parallel processes")
+
     return parser
 
 
@@ -95,10 +122,16 @@ if __name__ == "__main__":
 
     num_samples = args.num_samples
     num_retries = args.num_retries
+    processes = args.processes
 
     for method in args.methods:
         filename = f"{model_name}_{method}_m{num_samples}_n{num_retries}.jsonl"
         out_file = os.path.join(out_dir, filename)
         os.close(os.open(out_file, os.O_CREAT | os.O_TRUNC))
 
-        main(model_id, dataset, method, num_samples, num_retries, out_file)
+        lm = lf.LanguageModel.get(model_id)
+
+        def process_row_arg_gen(row, lock):
+            return (row, lm, method, num_samples, num_retries, out_file, lock)
+
+        parallel_process(dataset, process_row, process_row_arg_gen, processes)
