@@ -26,3 +26,5 @@ bigcodebench.syncheck --samples "${SAN_SAMPLES}" 2> "${EVAL_LOG}" | tee "${EVAL_
 echo "Evaluating ${SAN_SAMPLES}"
 bigcodebench.evaluate --split complete --subset full --samples "${SAN_SAMPLES}"
 [[ $! -eq 0 ]] || echo "Failed evaluating ${SAN_SAMPLES}"; exit 1
+
+echo "Evaluated successfully ${SAN_SAMPLES}" && rm "${EVAL_LOG}"

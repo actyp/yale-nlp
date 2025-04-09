@@ -1,5 +1,7 @@
-from schema import *
-from prompt import *
+from prompt import MultipleChoicePrompt, MultipleChoiceResponse
+from prompt import SamplePrompt, VerifyPrompt, CorrectPrompt
+from prompt import AnalyticalResponse, CorrectionResponse
+from schema import Solution, examples
 import langfun as lf
 import logging
 import random
@@ -96,7 +98,6 @@ def multiple_choice(
         )
 
 
-
 def majority_vote(
     solutions: list[Solution],
     lm: lf.LanguageModel,
@@ -126,14 +127,11 @@ def majority_vote(
 
 
 def sample_verify_correct(
-    task_id: str,
     task: str,
     lm: lf.LanguageModel,
     num_retries: int
 ) -> (Solution | None, bool, int):
-    logger.info(f"Start task {task_id}")
-
-    attempts = 0
+    attempts = -1
     aresp = sample(task, lm)
     logger.debug(f"AnalyticalResponse: {aresp}")
 
@@ -145,6 +143,7 @@ def sample_verify_correct(
 
     analysis, success = verify(task, solution, lm)
     logger.debug(f"Verification success: {success}, analysis: {analysis}")
+    attempts += 1
 
     if analysis is None:
         logger.critical("Found None verification analysis")
@@ -268,8 +267,8 @@ def sample_veco(
     logger.info(f"Start task {task_id}")
 
     map_iterator = lf.concurrent_map(
-        func=lambda tinfo: sample_verify_correct(*tinfo, lm, num_retries),
-        parallel_inputs=[(task_id, task)] * num_samples,
+        func=lambda task: sample_verify_correct(task, lm, num_retries),
+        parallel_inputs=[task_id] * num_samples,
     )
 
     ver_sols = []
