@@ -6,6 +6,7 @@ from threading import Lock
 import pyglove as pg
 import langfun as lf
 import argparse
+import random
 import json
 import os
 
@@ -90,6 +91,8 @@ def parser():
     parser.add_argument("--max_workers", type=int, default=None,
                         help="Limit the number of concurrent workers")
 
+    parser.add_argument("--query_num", type=int, default=200,
+                        help="Query number to randomly sample and store")
     return parser
 
 
@@ -127,8 +130,9 @@ if __name__ == "__main__":
 
         usages_file = os.path.join(out_dir, f"{basename}_usages.json")
         with open(usages_file, 'w') as file:
-            json.dump(usages.to_json(), file)
+            file.write(usages.to_json_str())
 
+        queries = random.sample(queries, min(args.query_num, len(queries)))
         queries_file = os.path.join(out_dir, f"{basename}_queries.html")
         with open(queries_file, 'w') as file:
-            file.write(str(pg.view(queries)))
+            file.write(pg.view(queries).to_str())
