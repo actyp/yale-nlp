@@ -1,35 +1,39 @@
-from prompt import MultipleChoicePrompt, MultipleChoiceResponse
-from prompt import SamplePrompt, VerifyPrompt, CorrectPrompt
-from prompt import AnalyticalResponse, CorrectionResponse
-from schema import Solution, examples
+from prompt import SamplePrompt, VerifyPrompt, CorrectPrompt, MultipleChoicePrompt
+from schema import Solution, AnalyticalResponse, CorrectionResponse
+from schema import MultipleChoiceResponse, examples
 import langfun as lf
+import traceback
 import logging
 import random
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] (%(thread)d): <%(funcName)s> %(message)s",
-    handlers=[logging.FileHandler("inference.log"), logging.StreamHandler()],
-)
 logger = logging.getLogger(__name__)
+
+
+def query_with_exception(*args, **kwargs):
+    try:
+        return lf.query(*args, **kwargs)
+    except Exception:
+        logger.warning(f"Exception during query: {traceback.format_exc()}")
+        return None
 
 
 def sample(task: str, lm: lf.LanguageModel) -> AnalyticalResponse | None:
 
-    return lf.query(
+    return query_with_exception(
         prompt=SamplePrompt(
             examples=examples,
             input=task,
         ),
         lm=lm,
         schema=AnalyticalResponse,
+        response_postprocess=AnalyticalResponse.clean_resp,
         default=None,
     )
 
 
 def verify(task: str, solution: Solution, lm: lf.LanguageModel) -> str | None:
 
-    analysis = lf.query(
+    analysis = query_with_exception(
         prompt=VerifyPrompt(
             examples=examples,
             input=task,
@@ -47,7 +51,7 @@ def correct(
     task: str, solution: Solution, analysis: str, lm: lf.LanguageModel
 ) -> CorrectionResponse | None:
 
-    return lf.query(
+    return query_with_exception(
         prompt=CorrectPrompt(
             examples=examples,
             input=task,
@@ -55,6 +59,7 @@ def correct(
             analysis=analysis,
         ),
         schema=CorrectionResponse,
+        response_postprocess=CorrectionResponse.clean_resp,
         lm=lm,
         default=None,
     )
@@ -76,13 +81,14 @@ def multiple_choice(
         )
 
     with lm.sampling_options.override(temperature=0):
-        choice = lf.query(
+        choice = query_with_exception(
             prompt=MultipleChoicePrompt(
                 examples=examples,
                 input=task,
                 solutions=solutions,
             ),
             schema=MultipleChoiceResponse,
+            response_postprocess=MultipleChoiceResponse.clean_resp,
             lm=lm,
             default=None,
         )
@@ -109,11 +115,12 @@ def majority_vote(
         logger.info("Only one provided solution")
         return solutions[0]
 
-    vote = lf.query(
+    vote = query_with_exception(
         prompt="What is the majority {{schema_title}} from {{schema_items}}",
         schema=Solution,
         schema_title='Solution',
         schema_items=solutions,
+        response_postprocess=Solution.clean_resp,
         lm=lm,
         default=None,
     )
@@ -268,7 +275,7 @@ def sample_veco(
 
     map_iterator = lf.concurrent_map(
         func=lambda task: sample_verify_correct(task, lm, num_retries),
-        parallel_inputs=[task_id] * num_samples,
+        parallel_inputs=[task] * num_samples,
     )
 
     ver_sols = []

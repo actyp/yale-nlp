@@ -5,11 +5,17 @@ from typing import SupportsIndex
 from threading import Lock
 import pyglove as pg
 import langfun as lf
+import traceback
 import argparse
-import random
+import logging
 import json
 import os
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] (%(thread)d): <%(funcName)s> %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 METHODS = [
     "sample_once",
@@ -27,6 +33,7 @@ def process_row(
     num_retries: int,
     out_file: str,
     out_file_lock: Lock,
+    queries_dir: str,
 ):
     funcargs = {
         "sample_once": (sample_once, [lm]),
@@ -38,8 +45,17 @@ def process_row(
     task_id = row["task_id"]
     complete_prompt = row["complete_prompt"]
 
+    filename = f"{task_id.replace('/', '--')}.html"
+    queries_file = os.path.join(queries_dir, filename)
+
     func, args = funcargs[method]
-    dct = func(task_id, complete_prompt, *args)
+    try:
+        with lf.track_queries() as queries:
+            dct = func(task_id, complete_prompt, *args)
+
+    except Exception:
+        logger.warning(f"Exception during function: {traceback.format_exc()}")
+        dct = {"solution": None, "details": "RaisedException"}
 
     solution = dct["solution"]
     solution_source = solution.source if solution is not None else "None"
@@ -56,6 +72,13 @@ def process_row(
     with out_file_lock:
         with open(out_file, "a") as file:
             file.write(json.dumps(save_dct) + "\n")
+
+    try:
+        with open(queries_file, 'w') as file:
+            for query in queries:
+                file.write(pg.to_html_str(query) + '\n')
+    except Exception:
+        logger.warning(f"Exception during query: {traceback.format_exc()}")
 
 
 def parser():
@@ -88,11 +111,20 @@ def parser():
     parser.add_argument("--out_dir", type=str, default="./evaluation",
                         help="The directory to store the results.")
 
-    parser.add_argument("--max_workers", type=int, default=None,
-                        help="Limit the number of concurrent workers")
+    parser.add_argument("--max_workers", type=int, default=20,
+                        help="Number of concurrent workers (can be None)")
 
     parser.add_argument("--query_num", type=int, default=200,
                         help="Query number to randomly sample and store")
+
+    parser.add_argument("--timeout", type=int, default=300,
+                        help="Timeout of a single query")
+
+    parser.add_argument("--temperature", type=float, default=0.7,
+                        help="Sampling parameter temperature")
+
+    parser.add_argument("--top_p", type=float, default=0.9,
+                        help="Sampling parameter top p")
     return parser
 
 
@@ -116,23 +148,28 @@ if __name__ == "__main__":
         out_file = os.path.join(out_dir, f"{basename}.jsonl")
         os.close(os.open(out_file, os.O_CREAT | os.O_TRUNC))
 
-        lm = lf.LanguageModel.get(model_id)
+        queries_dir = os.path.join(out_dir, f"{basename}_queries")
+        os.makedirs(queries_dir, exist_ok=True)
+
+        usages_file = os.path.join(out_dir, f"{basename}_usages.json")
+
+        lm = lf.LanguageModel.get(
+            model_id,
+            timeout=args.timeout,
+            temperature=args.temperature,
+            top_p=args.top_p,
+        )
         lock = Lock()
 
-        with lf.track_usages(lm) as usages, lf.track_queries() as queries:
+        with lf.track_usages(lm) as usages:
             lf.concurrent_execute(
                 func=lambda row: process_row(
-                    row, lm, method, num_samples, num_retries, out_file, lock
+                    row, lm, method, num_samples, num_retries,
+                    out_file, lock, queries_dir,
                 ),
                 parallel_inputs=dataset,
                 max_workers=args.max_workers,
             )
 
-        usages_file = os.path.join(out_dir, f"{basename}_usages.json")
         with open(usages_file, 'w') as file:
             file.write(usages.to_json_str())
-
-        queries = random.sample(queries, min(args.query_num, len(queries)))
-        queries_file = os.path.join(out_dir, f"{basename}_queries.html")
-        with open(queries_file, 'w') as file:
-            file.write(pg.view(queries).to_str())

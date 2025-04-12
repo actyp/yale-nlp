@@ -1,10 +1,12 @@
 from typing import Annotated
 import pyglove as pg
 import langfun as lf
+import re
 
 
 class Solution(lf.PythonCode):
-    pass
+    def clean_resp(resp):
+        return clean_resp(resp, "Solution")
 
 
 class AnalyticalResponse(pg.Object):
@@ -15,6 +17,9 @@ class AnalyticalResponse(pg.Object):
     solution: Annotated[
         Solution, "The final solution that satisfies all the constraints."
     ]
+
+    def clean_resp(resp):
+        return clean_resp(resp, "AnalyticalResponse")
 
 
 class CorrectionResponse(pg.Object):
@@ -28,6 +33,9 @@ class CorrectionResponse(pg.Object):
         Solution, "The new solution that satisfies all the constraints."
     ]
 
+    def clean_resp(resp):
+        return clean_resp(resp, "CorrectionResponse")
+
 
 class MultipleChoiceResponse(pg.Object):
     "Response containing thoughts and multiple choice solution."
@@ -40,6 +48,9 @@ class MultipleChoiceResponse(pg.Object):
     solution: Annotated[
         Solution, "The best solution that satisfies all the constraints."
     ]
+
+    def clean_resp(resp):
+        return clean_resp(resp, "MultipleChoiceResponse")
 
 
 examples = [
@@ -101,3 +112,34 @@ def task_func(numbers=list(range(1, 3))):
         ),
     )
 ]
+
+
+def clean_resp(resp: str, schema_cls: str) -> str:
+    schema_use = f"{schema_cls}("
+    segment_pat = r"(.*?)```python(.*?)```"
+
+    pair_chunks = []
+    last_end = 0
+
+    for match in re.finditer(segment_pat, resp, re.DOTALL):
+        _, last_end = match.span()
+        text = match.group(1).strip()
+        code = match.group(2).strip()
+        pair_chunks.append((text, code))
+
+    # append remaining text after last code block
+    if last_end < len(resp):
+        text = resp[last_end:].strip()
+        pair_chunks.append((text, ""))
+
+    out = ""
+    for text, code in pair_chunks:
+        out += f"{text}\n"
+
+        # remove code lines before schema usage
+        # remove code blocks without schema usage
+        start = code.find(schema_use)
+        if start >= 0:
+            out += f"```python\n{code[start:]}\n```\n"
+
+    return out
