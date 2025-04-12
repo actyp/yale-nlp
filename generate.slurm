@@ -6,11 +6,11 @@
 
 #SBATCH --job-name=generate
 #SBATCH --time=48:00:00
-#SBATCH --mem=30G
+#SBATCH --mem=100G
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
 #SBATCH --constraint=a5000|a100
-#SBATCH --cpus-per-task=3
+#SBATCH --cpus-per-task=2
 
 
 module purge
@@ -19,6 +19,7 @@ module load miniconda
 
 HOST="localhost"
 PORT="8000"
+GPU_MEM_UTIL="0.95"
 VLLM_LOG="vllm_server.log"
 
 
@@ -29,7 +30,8 @@ start_vllm() {
     conda activate vllm
 
     # start vllm server in the background
-    vllm serve --gpu_memory_utilization 0.95 --host "${HOST}" --port "${PORT}" "${MODEL}" >> "${VLLM_LOG}" 2>&1 &
+    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    vllm serve --gpu_memory_utilization "${GPU_MEM_UTIL}" --host "${HOST}" --port "${PORT}" "${MODEL}" >> "${VLLM_LOG}" 2>&1 &
     VLLM_PID=$!
 
     conda deactivate
