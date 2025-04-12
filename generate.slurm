@@ -20,6 +20,7 @@ module load miniconda
 HOST="localhost"
 PORT="8000"
 GPU_MEM_UTIL="0.95"
+TENSOR_PAR_SIZE="1"
 VLLM_LOG="vllm_server.log"
 
 
@@ -31,7 +32,12 @@ start_vllm() {
 
     # start vllm server in the background
     export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-    vllm serve --gpu_memory_utilization "${GPU_MEM_UTIL}" --host "${HOST}" --port "${PORT}" "${MODEL}" >> "${VLLM_LOG}" 2>&1 &
+
+    vllm serve --host "${HOST}" --port "${PORT}" \
+               --gpu_memory_utilization "${GPU_MEM_UTIL}" \
+               --tensor-parallel-size "${TENSOR_PAR_SIZE}" \
+               "${MODEL}" >> "${VLLM_LOG}" 2>&1 &
+
     VLLM_PID=$!
 
     conda deactivate
@@ -83,4 +89,11 @@ run_main() {
 }
 
 
-run_main --model_id "Qwen/Qwen2.5-7B-Instruct"
+#run_main --model_id "m-a-p/OpenCodeInterpreter-DS-33B"
+#run_main --model_id "Qwen/Qwen2.5-Coder-32B-Instruct"
+
+#run_main --model_id "bigcode/starcoder2-15b-instruct-v0.1"
+#run_main --model_id "codellama/CodeLlama-13b-Instruct-hf"
+
+#run_main --model_id "NTQAI/Nxcode-CQ-7B-orpo"
+#run_main --model_id "Artigenz/Artigenz-Coder-DS-6.7B"
