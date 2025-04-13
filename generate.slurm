@@ -9,7 +9,7 @@
 #SBATCH --mem=100G
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
-#SBATCH --constraint=a5000|a100
+#SBATCH --constraint=a100
 #SBATCH --cpus-per-task=2
 
 

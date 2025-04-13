@@ -1,6 +1,7 @@
 from schema import Solution
 import langfun as lf
 import pyglove as pg
+import re
 
 
 class CommonPrompt(lf.structured.Mapping):
@@ -120,10 +121,21 @@ class VerifyPrompt(CommonPrompt):
     def is_successful_analysis(analysis: str | None) -> bool:
         if analysis is None:
             return False
-        elif VerifyPrompt.answer_trigger_success in analysis:
+
+        elif re.search(
+            VerifyPrompt.answer_trigger_success,
+            analysis,
+            re.IGNORECASE
+        ):
             return True
-        elif VerifyPrompt.answer_trigger_failure in analysis:
+
+        elif re.search(
+            VerifyPrompt.answer_trigger_failure,
+            analysis,
+            re.IGNORECASE
+        ):
             return False
+
         else:
             return False
 
