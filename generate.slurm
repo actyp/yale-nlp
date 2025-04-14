@@ -9,8 +9,8 @@
 #SBATCH --mem=100G
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
-#SBATCH --constraint=a100
-#SBATCH --cpus-per-task=2
+#SBATCH --constraint=a100-80g
+#SBATCH --cpus-per-task=1
 
 
 module purge
@@ -34,9 +34,9 @@ start_vllm() {
     export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
     vllm serve --host "${HOST}" --port "${PORT}" \
-               --gpu_memory_utilization "${GPU_MEM_UTIL}" \
-               --tensor-parallel-size "${TENSOR_PAR_SIZE}" \
-               "${MODEL}" >> "${VLLM_LOG}" 2>&1 &
+        --gpu_memory_utilization "${GPU_MEM_UTIL}" \
+        --tensor-parallel-size "${TENSOR_PAR_SIZE}" \
+        "${MODEL}" >> "${VLLM_LOG}" 2>&1 &
 
     VLLM_PID=$!
 
@@ -45,8 +45,13 @@ start_vllm() {
     # wait for the vllm server to connect
     until $(nc -z "${HOST}" "${PORT}" 2> /dev/null)
     do
-      echo "waiting for vllm to connect to ${HOST}:${PORT}"
-      sleep 30
+        if ! $(kill -0 "${VLLM_PID}" 2> /dev/null); then
+            echo "vllm terminated abruptly"
+            exit 1
+        else
+            echo "waiting for vllm to connect to ${HOST}:${PORT}"
+            sleep 30
+        fi
     done
 
     echo "vllm is connected"
