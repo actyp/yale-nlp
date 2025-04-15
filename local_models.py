@@ -11,9 +11,9 @@ class LocalModelInfo(lf.ModelInfo):
 
 SUPPORTED_MODELS = [
     LocalModelInfo(
-        model_id="m-a-p/OpenCodeInterpreter-DS-33B",
+        model_id="deepseek-ai/deepseek-coder-33b-instruct",
         model_type="instruction-tuned",
-        url="https://huggingface.co/m-a-p/OpenCodeInterpreter-DS-33B",
+        url="https://huggingface.co/deepseek-ai/deepseek-coder-33b-instruct",
         context_length=lf.ModelInfo.ContextLength(
             max_input_tokens=12_000,
             max_output_tokens=4_384,
@@ -92,10 +92,10 @@ class LocalModel(openai_compatible.OpenAICompatible):
         return [m.model_id for m in SUPPORTED_MODELS]
 
 
-class OpenCodeInterpreter_DS_33B(LocalModel):
-    """m-a-p/OpenCodeInterpreter-DS-33B model."""
+class Deepseek_Coder_33B_Instruct(LocalModel):
+    """deepseek-ai/deepseek-coder-33b-instruct model."""
 
-    model = "m-a-p/OpenCodeInterpreter-DS-33B"
+    model = "deepseek-ai/deepseek-coder-33b-instruct"
 
 
 class Qwen25_Coder_32B_Instruct(LocalModel):

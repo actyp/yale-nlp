@@ -78,7 +78,7 @@ run_main() {
     MODEL="${2}"
 
     # check if the model is supported
-    if ! grep -q "model_id=\"${MODEL}\"" local_models.py; then
+    if ! $(grep -q "model_id=\"${MODEL}\"" local_models.py); then
         echo "Unsupported model: ${MODEL}, not found in local_models.py"
         return 1
     fi
@@ -94,7 +94,7 @@ run_main() {
 }
 
 
-#run_main --model_id "m-a-p/OpenCodeInterpreter-DS-33B"
+#run_main --model_id "deepseek-ai/deepseek-coder-33b-instruct"
 #run_main --model_id "Qwen/Qwen2.5-Coder-32B-Instruct"
 
 #run_main --model_id "bigcode/starcoder2-15b-instruct-v0.1"
