@@ -58,7 +58,11 @@ def process_row(
         dct = {"solution": None, "details": "RaisedException"}
 
     solution = dct["solution"]
-    solution_source = solution.source if solution is not None else "None"
+    solution_source = "None"
+    if solution is not None:
+        solution_str = solution.source.lstrip()
+        if solution_str:
+            solution_source = solution_str
 
     save_dct = {
         "task_id": task_id,
