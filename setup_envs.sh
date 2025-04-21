@@ -15,6 +15,7 @@ conda activate nlp
 
 pip install langfun[all] --pre
 pip install datasets
+pip install autopep8
 pip install -U "huggingface_hub[cli]"
 conda deactivate
 

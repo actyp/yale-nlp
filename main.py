@@ -6,6 +6,7 @@ from threading import Lock
 import pyglove as pg
 import langfun as lf
 import traceback
+import autopep8
 import argparse
 import logging
 import json
@@ -60,7 +61,12 @@ def process_row(
     solution = dct["solution"]
     solution_source = "None"
     if solution is not None:
-        solution_str = solution.source.lstrip()
+        try:
+            solution_str = autopep8.fix_code(solution.source)
+        except Exception as e:
+            logger.warning(f"Exception during formatting: {e}")
+            solution_str = solution.source
+
         if solution_str:
             solution_source = solution_str
 
