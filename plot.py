@@ -109,11 +109,11 @@ def plot_pies(data, plot_dir):
         # 3) colors
         outer_colors = ["#4caf50", "#f44336"]  # green / red
         inner_colors = [
-            "#388e3c",
-            "#81c784",  # two shades of green
-            "#d32f2f",
-            "#e57373",
-        ]  # two shades of red
+            "#6cce9e",  # two shades of green
+            "#a8e6cf",
+            "#f47c7d",  # two shades of red
+            "#fcb5b5",
+        ]
 
         # 4) plot
         fig, ax = plt.subplots(figsize=(6, 6))
@@ -489,6 +489,13 @@ def get_usage_data():
         retry_stats = break_data["retry_stats"]
 
         num_requests = break_data["num_requests"]
+        num_retries = retry_stats["num_occurences"]
+
+        num_direct = num_requests - num_retries
+
+        completion_tokens = break_data["completion_tokens"]
+        direct_tokens = completion_tokens * num_direct / (num_requests**2)
+        retry_tokens = completion_tokens * num_retries / (num_requests**2)
 
         if "TemporaryLMError" in retry_stats["errors"]:
             errors = retry_stats["errors"]["TemporaryLMError"]
@@ -498,9 +505,11 @@ def get_usage_data():
         data_usage[bench][model_name] = {
             "prompt_tokens": break_data["prompt_tokens"] / num_requests,
             "completion_tokens": break_data["completion_tokens"] / num_requests,
+            "direct_tokens": direct_tokens,
+            "retry_tokens": retry_tokens,
             "total_tokens": break_data["total_tokens"],
             "num_requests": num_requests,
-            "num_occurences": retry_stats["num_occurences"],
+            "num_occurences": num_retries,
             "total_wait_interval": retry_stats["total_wait_interval"],
             "total_call_interval": retry_stats["total_call_interval"],
             "errors": errors,
@@ -625,10 +634,11 @@ if __name__ == "__main__":
         title="Average Prompt vs Completion Token Usage",
         legend_title="Token Type",
         plot_file=os.path.join(plot_path, "models_tokens.png"),
-        stacked_keys=["prompt_tokens", "completion_tokens"],
+        stacked_keys=["prompt_tokens", "direct_tokens", "retry_tokens"],
         colors={
             "prompt_tokens": "skyblue",
-            "completion_tokens": "orange",
+            "direct_tokens": "orange",
+            "retry_tokens": "lightcoral",
         },
     )
 
