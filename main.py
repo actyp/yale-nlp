@@ -81,7 +81,7 @@ def process_row(
 
     with out_file_lock:
         with open(out_file, "a") as file:
-            file.write(json.dumps(save_dct) + "\n")
+            file.write(json.dumps(save_dct) + '\n')
 
     try:
         with open(queries_file, 'w') as file:
@@ -123,9 +123,6 @@ def parser():
 
     parser.add_argument("--max_workers", type=int, default=20,
                         help="Number of concurrent workers (can be None)")
-
-    parser.add_argument("--query_num", type=int, default=200,
-                        help="Query number to randomly sample and store")
 
     parser.add_argument("--timeout", type=int, default=300,
                         help="Timeout of a single query")

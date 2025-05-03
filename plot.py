@@ -575,21 +575,11 @@ def get_task_id_details():
 
 
 if __name__ == "__main__":
+    os.makedirs(plot_path, exist_ok=True)
+
     data_eval = get_data_eval()
     data_usage = get_usage_data()
     data_veco = get_task_id_details()
-
-    # Plot Pass@k rates by benchmark
-    plot_bar(
-        group_by="benchmarks",
-        data=data_eval,
-        gather_value="pass",
-        ylabel="Success Rate",
-        title="Benchmark Success Rate",
-        legend_title="Model",
-        ylim=1,
-        plot_file=os.path.join(plot_path, "methods_pass.png"),
-    )
 
     plot_bar(
         group_by="models",
@@ -600,16 +590,6 @@ if __name__ == "__main__":
         legend_title="Method",
         ylim=1,
         plot_file=os.path.join(plot_path, "models_pass.png"),
-    )
-
-    plot_bar(
-        group_by="models",
-        data=data_usage,
-        gather_value="num_occurences",
-        ylabel="Retry Attempts",
-        title="Number of Retries",
-        legend_title="Benchmark",
-        plot_file=os.path.join(plot_path, "models_attempts.png"),
     )
 
     plot_bar(
