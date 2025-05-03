@@ -1,13 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import argparse
 import json
 import os
-
-evaluation_path = "evaluation"
-plot_path = "plots"
-
-# create plot_path if it doesn't exist
-os.makedirs(plot_path, exist_ok=True)
 
 methods = [
     "sample_once",
@@ -383,11 +378,11 @@ def plot_bar(
     plt.savefig(plot_file)
 
 
-def get_data_eval():
+def get_data_eval(eval_dir):
     file_ext = "eval_results.json"
     # find files with file_ext in evaluation_path
     files = []
-    for file in os.listdir(evaluation_path):
+    for file in os.listdir(eval_dir):
         if file.endswith(file_ext):
             files.append(file)
 
@@ -414,7 +409,7 @@ def get_data_eval():
             print(f"Unknown benchmark: {file}")
             continue
 
-        with open(os.path.join(evaluation_path, file), "r") as f:
+        with open(os.path.join(eval_dir, file), "r") as f:
             data = json.load(f)
 
         pass_count = 0
@@ -435,11 +430,11 @@ def get_data_eval():
     return data_eval
 
 
-def get_usage_data():
+def get_usage_data(eval_dir):
     file_ext = "usages.json"
     # find files with file_ext in evaluation_path
     files = []
-    for file in os.listdir(evaluation_path):
+    for file in os.listdir(eval_dir):
         if file.endswith(file_ext):
             files.append(file)
 
@@ -465,7 +460,7 @@ def get_usage_data():
             print(f"Unknown benchmark: {file}")
             continue
 
-        with open(os.path.join(evaluation_path, file), "r") as f:
+        with open(os.path.join(eval_dir, file), "r") as f:
             data = json.load(f)
 
         breakdown = data["uncached"]["breakdown"]
@@ -503,11 +498,13 @@ def get_usage_data():
     return data_usage
 
 
-def get_task_id_details():
-    file_ext = "sample_veco_m8_n4.jsonl"
+def get_task_id_details(eval_dir, num_samples, num_retries):
+    basefile = f"sample_veco_m{num_samples}_n{num_retries}"
+
+    file_ext = f"{basefile}.jsonl"
     # find files with file_ext in evaluation_path
     files = []
-    for file in os.listdir(evaluation_path):
+    for file in os.listdir(eval_dir):
         if file.endswith(file_ext):
             files.append(file)
 
@@ -521,7 +518,7 @@ def get_task_id_details():
                 model_name = set_names
                 break
 
-        with open(os.path.join(evaluation_path, file), "r") as file:
+        with open(os.path.join(eval_dir, file), "r") as file:
             for line in file:
                 try:
                     json_data = json.loads(line)
@@ -539,9 +536,9 @@ def get_task_id_details():
                     print(f"Error decoding JSON on line: {line.strip()} - {e}")
 
     # parse eval_results to get pass/fail for each task_id
-    file_ext = "sample_veco_m8_n4-sanitized-calibrated_eval_results.json"
+    file_ext = f"{basefile}-sanitized-calibrated_eval_results.json"
     files = []
-    for file in os.listdir(evaluation_path):
+    for file in os.listdir(eval_dir):
         if file.endswith(file_ext):
             files.append(file)
 
@@ -563,7 +560,7 @@ def get_task_id_details():
             print(f"Unknown benchmark: {file}")
             continue
 
-        with open(os.path.join(evaluation_path, file), "r") as f:
+        with open(os.path.join(eval_dir, file), "r") as f:
             data = json.load(f)
 
         for task_id, res in data["eval"].items():
@@ -574,12 +571,38 @@ def get_task_id_details():
     return data_task
 
 
-if __name__ == "__main__":
-    os.makedirs(plot_path, exist_ok=True)
+def parser():
+    parser = argparse.ArgumentParser(
+        usage="%(prog)s [options]",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
-    data_eval = get_data_eval()
-    data_usage = get_usage_data()
-    data_veco = get_task_id_details()
+    parser.add_argument("--num_samples", type=int, default=8,
+                        help="The number of samples (m) to use.")
+
+    parser.add_argument("--num_retries", type=int, default=4,
+                        help="The number of retries (n) to use.")
+
+    parser.add_argument("--eval_dir", type=str, default="./evaluation",
+                        help="The directory of the evaluation results.")
+
+    parser.add_argument("--plot_dir", type=str, default="./plots",
+                        help="The directory to store the plots.")
+    return parser
+
+
+if __name__ == "__main__":
+    args = parser().parse_args()
+    num_samples = args.num_samples
+    num_retries = args.num_retries
+    eval_dir = args.eval_dir
+    plot_dir = args.plot_dir
+
+    os.makedirs(plot_dir, exist_ok=True)
+
+    data_eval = get_data_eval(eval_dir)
+    data_usage = get_usage_data(eval_dir)
+    data_veco = get_task_id_details(eval_dir, num_samples, num_retries)
 
     plot_bar(
         group_by="models",
@@ -589,7 +612,7 @@ if __name__ == "__main__":
         title="Benchmark Success Rate",
         legend_title="Method",
         ylim=1,
-        plot_file=os.path.join(plot_path, "models_pass.png"),
+        plot_file=os.path.join(plot_dir, "models_pass.png"),
     )
 
     plot_bar(
@@ -598,7 +621,7 @@ if __name__ == "__main__":
         ylabel="Tokens",
         title="Average Prompt vs Completion Token Usage",
         legend_title="Token Type",
-        plot_file=os.path.join(plot_path, "models_tokens.png"),
+        plot_file=os.path.join(plot_dir, "models_tokens.png"),
         stacked_keys=["prompt_tokens", "direct_tokens", "retry_tokens"],
         colors={
             "prompt_tokens": "skyblue",
@@ -609,5 +632,5 @@ if __name__ == "__main__":
 
     plot_pies(
         data_veco,
-        plot_dir=plot_path,
+        plot_dir=plot_dir,
     )
