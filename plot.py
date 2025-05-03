@@ -6,6 +6,9 @@ import os
 evaluation_path = "evaluation"
 plot_path = "plots"
 
+# create plot_path if it doesn't exist
+os.makedirs(plot_path, exist_ok=True)
+
 methods = [
     "sample_once",
     "sample_vote",
@@ -94,19 +97,13 @@ def plot_pies(data, plot_dir):
 
         # 2) prepare sizes
         outer_sizes = [pass_count, fail_count]
-        # divide to total
+
         outer_sizes = [x / total for x in outer_sizes]
         inner_sizes = [pass_verify, pass_non, fail_verify, fail_non]
-        # divide to total
+
         inner_sizes = [x / total for x in inner_sizes]
 
-        # print("Mode: ", model)
-        # print(f"Pass: {pass_count}, Fail: {fail_count}")
-        # print(f"Pass-Verify: {pass_verify}, Pass-Non: {pass_non}")
-        # print(f"Fail-Verify: {fail_verify}, Fail-Non: {fail_non}")
-        # print()
-
-        # 3) colors
+        # 3) plot
         outer_colors = ["#4caf50", "#f44336"]  # green / red
         inner_colors = [
             "#6cce9e",  # two shades of green
@@ -115,8 +112,7 @@ def plot_pies(data, plot_dir):
             "#fcb5b5",
         ]
 
-        # 4) plot
-        fig, ax = plt.subplots(figsize=(6, 6))
+        fig, ax = plt.subplots(figsize=(5, 5))
         # outer ring (overall pass vs fail)
         # ax.pie(
         #     outer_sizes,
@@ -149,17 +145,16 @@ def plot_pies(data, plot_dir):
         )
         ax.text(
             0,
-            0,  # data‐coords at center of pie
-            model,  # the string you want
-            ha="center",  # horizontal align center
-            va="center",  # vertical align center
-            fontsize=10,  # tweak size
-            fontweight="bold",  # optional
+            0,
+            model,
+            ha="center",
+            va="center",
+            fontsize=10,
+            fontweight="bold",
         )
 
-        # make it a perfect circle
         ax.set(aspect="equal")
-        ax.set_title(f"Veco Evaluation", fontsize=14)
+        # ax.set_title(f"Veco Evaluation", fontsize=14)
 
         fig.tight_layout()
 
@@ -167,7 +162,7 @@ def plot_pies(data, plot_dir):
         os.makedirs(plot_dir, exist_ok=True)
         fn = os.path.join(plot_dir, f"pie_{model}_eval.png")
         plt.tight_layout()
-        plt.savefig(fn)
+        plt.savefig(fn, bbox_inches="tight", pad_inches=0)
         plt.close(fig)
 
         # Second pie chart will gather (status, attempts) for every sample
@@ -223,17 +218,8 @@ def plot_pies(data, plot_dir):
             "V|4": greens[4],
         }
 
-        print(f"Model: {model}")
-        for k, v in categories.items():
-            print(f"{k}: {v:.2f}")
-
         # remove all keys for which value is 0
         categories = {k: v for k, v in categories.items() if v > 0.00}
-
-        print(f"Clearing:")
-        for k, v in categories.items():
-            print(f"{k}: {v:.2f}")
-        print()
 
         labels = []
         sizes = []
@@ -247,7 +233,7 @@ def plot_pies(data, plot_dir):
         for k in categories.keys():
             colors.append(cat_colors[k])
 
-        fig, ax = plt.subplots(figsize=(6, 6))
+        fig, ax = plt.subplots(figsize=(5, 5))
         ax.pie(
             sizes,
             radius=0.7,
@@ -262,24 +248,23 @@ def plot_pies(data, plot_dir):
         ax.text(
             0,
             0,  # data‐coords at center of pie
-            model,  # the string you want
-            ha="center",  # horizontal align center
-            va="center",  # vertical align center
-            fontsize=10,  # tweak size
-            fontweight="bold",  # optional
+            model,
+            ha="center",
+            va="center",
+            fontsize=10,
+            fontweight="bold",
         )
 
-        # make it a perfect circle
         ax.set(aspect="equal")
-        ax.set_title(f"Verification Statistics", fontsize=14)
+        # ax.set_title(f"Verification Statistics", fontsize=14)
 
-        fig.tight_layout()
+        fig.tight_layout(pad=0, w_pad=0, h_pad=0)
 
         # save
         os.makedirs(plot_dir, exist_ok=True)
         fn = os.path.join(plot_dir, f"pie_{model}_attempts.png")
         plt.tight_layout()
-        plt.savefig(fn)
+        plt.savefig(fn, bbox_inches="tight")
         plt.close(fig)
 
 
@@ -387,9 +372,9 @@ def plot_bar(
             if params:
                 xlabels[xlabels.index(lbl)] = f"{lbl}\n({params})"
 
-    ax.set_xticklabels(xlabels, rotation=20)
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
+    ax.set_xticklabels(xlabels, rotation=20, fontsize=12)
+    ax.set_ylabel(ylabel, fontsize=18)
+    ax.set_title(title, fontsize=20)
     ax.legend(title=legend_title)
     if ylim:
         ax.set_ylim(0, ylim)
