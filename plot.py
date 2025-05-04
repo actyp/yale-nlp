@@ -474,8 +474,12 @@ def get_usage_data(eval_dir):
         num_direct = num_requests - num_retries
 
         completion_tokens = break_data["completion_tokens"]
-        direct_tokens = completion_tokens * num_direct / (num_requests**2)
-        retry_tokens = completion_tokens * num_retries / (num_requests**2)
+        cmp_dir_tokens = completion_tokens * num_direct / (num_requests**2)
+        cmp_ret_tokens = completion_tokens * num_retries / (num_requests**2)
+
+        prompt_tokens = break_data["prompt_tokens"]
+        pmt_dir_tokens = prompt_tokens * num_direct / (num_requests**2)
+        pmt_ret_tokens = prompt_tokens * num_retries / (num_requests**2)
 
         if "TemporaryLMError" in retry_stats["errors"]:
             errors = retry_stats["errors"]["TemporaryLMError"]
@@ -485,8 +489,10 @@ def get_usage_data(eval_dir):
         data_usage[bench][model_name] = {
             "prompt_tokens": break_data["prompt_tokens"] / num_requests,
             "completion_tokens": break_data["completion_tokens"] / num_requests,
-            "direct_tokens": direct_tokens,
-            "retry_tokens": retry_tokens,
+            "cmp_dir_tokens": cmp_dir_tokens,
+            "cmp_ret_tokens": cmp_ret_tokens,
+            "pmt_dir_tokens": pmt_dir_tokens,
+            "pmt_ret_tokens": pmt_ret_tokens,
             "total_tokens": break_data["total_tokens"],
             "num_requests": num_requests,
             "num_occurences": num_retries,
@@ -577,17 +583,27 @@ def parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    parser.add_argument("--num_samples", type=int, default=8,
-                        help="The number of samples (m) to use.")
+    parser.add_argument(
+        "--num_samples", type=int, default=8, help="The number of samples (m) to use."
+    )
 
-    parser.add_argument("--num_retries", type=int, default=4,
-                        help="The number of retries (n) to use.")
+    parser.add_argument(
+        "--num_retries", type=int, default=4, help="The number of retries (n) to use."
+    )
 
-    parser.add_argument("--eval_dir", type=str, default="./evaluation",
-                        help="The directory of the evaluation results.")
+    parser.add_argument(
+        "--eval_dir",
+        type=str,
+        default="./evaluation",
+        help="The directory of the evaluation results.",
+    )
 
-    parser.add_argument("--plot_dir", type=str, default="./plots",
-                        help="The directory to store the plots.")
+    parser.add_argument(
+        "--plot_dir",
+        type=str,
+        default="./plots",
+        help="The directory to store the plots.",
+    )
     return parser
 
 
@@ -619,14 +635,20 @@ if __name__ == "__main__":
         group_by="models",
         data=data_usage,
         ylabel="Tokens",
-        title="Average Prompt vs Completion Token Usage",
+        title="Average Token Usage",
         legend_title="Token Type",
         plot_file=os.path.join(plot_dir, "models_tokens.png"),
-        stacked_keys=["prompt_tokens", "direct_tokens", "retry_tokens"],
+        stacked_keys=[
+            "pmt_dir_tokens",
+            "pmt_ret_tokens",
+            "cmp_dir_tokens",
+            "cmp_ret_tokens",
+        ],
         colors={
-            "prompt_tokens": "skyblue",
-            "direct_tokens": "orange",
-            "retry_tokens": "lightcoral",
+            "pmt_dir_tokens": "skyblue",
+            "pmt_ret_tokens": "#fcb5b5",
+            "cmp_dir_tokens": "#2a9d8f",
+            "cmp_ret_tokens": "#d63031",
         },
     )
 
